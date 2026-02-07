@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="author" content="Bayo Alabi">
+  <meta name="description" content="Smart Brain CBT platform for secondary school students in Nigeria">
+  <title>Smart Brain CBT | Exam Practice Platform</title>
+  <link rel="icon" type="image/png" href="img/Smart-brain-icon.png">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  
+  <!-- Add EmailJS SDK -->
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+  <script type="text/javascript">
+    (function() {
+      emailjs.init("YOUR_PUBLIC_KEY_HERE"); // You'll need to replace this with your EmailJS Public Key
+    })();
+  </script>
+</head>
+<body>
+
+<!-- HEADER - MOBILE FIRST -->
+<header class="header">
+  <div class="container header-container">
+    <div class="brand">
+      <div class="logo">
+        <i class="fas fa-brain"></i>
+      </div>
+      <h1 class="brand-name">Smart Brain <span class="cbt">CBT</span></h1>
+    </div>
+
+    <div class="hamburger" id="hamburger">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+
+    <!-- DESKTOP NAVIGATION -->
+    <nav class="desktop-nav">
+      <ul class="desktop-nav-list">
+        <li class="desktop-nav-item">
+          <a href="#" class="desktop-nav-link active">
+            <i class="fas fa-home"></i> Home
+          </a>
+        </li>
+        <li class="desktop-nav-item">
+          <a href="#features" class="desktop-nav-link">
+            <i class="fas fa-star"></i> Features
+          </a>
+        </li>
+        <li class="desktop-nav-item">
+          <a href="#exams" class="desktop-nav-link">
+            <i class="fas fa-book"></i> Exams
+          </a>
+        </li>
+        <li class="desktop-nav-item">
+          <a href="#contact" class="desktop-nav-link">
+            <i class="fas fa-envelope"></i> Contact
+          </a>
+        </li>
+        <li><a href="faq.html" class="desktop-nav-link"><i class="fas fa-star"></i></i> FAQ</a></li>
+        <li class="desktop-nav-item">
+          <a href="login.html" class="btn-login desktop-nav-link">
+            <i class="fas fa-sign-in-alt"></i> Login
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<!-- MOBILE MENU -->
+<nav class="mobile-menu" id="mobileMenu">
+  <div class="container">
+    <ul class="nav-list">
+      <li><a href="#" class="nav-link active"><i class="fas fa-home"></i> Home</a></li>
+      <li><a href="#features" class="nav-link"><i class="fas fa-star"></i> Features</a></li>
+      <li><a href="#exams" class="nav-link"><i class="fas fa-book"></i> Exams</a></li>
+      <li><a href="#contact" class="nav-link"><i class="fas fa-envelope"></i> Contact</a></li>
+      <li><a href="faq.html" class="nav-link"><i class="fas fa-star"></i></i> FAQ</a></li>
+      <li><a href="login.html" class="nav-link btn-login"><i class="fas fa-sign-in-alt"></i> Login</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main>
+  <!-- HERO SECTION -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-content">
+        <div class="badge">
+          <i class="fas fa-bolt"></i>
+          <span>Practice Smarter</span>
+        </div>
+        
+        <h1 class="hero-title">Ace Your Exams with <span class="highlight">Smart Brain CBT</span></h1>
+        
+        <p class="hero-text">The ultimate practice platform for WAEC, NECO & JAMB. Practice with thousands of questions, track your progress, and improve your scores.</p>
+        
+        <div class="hero-actions">
+          <a href="signup.html" class="btn btn-primary">
+            <i class="fas fa-rocket"></i> Start Free Trial
+          </a>
+          <a href="#features" class="btn btn-secondary">
+            <i class="fas fa-play-circle"></i> See Features
+          </a>
+        </div>
+        
+        <div class="hero-stats">
+          <div class="stat-item">
+            <div class="stat-number">10K+</div>
+            <div class="stat-label">Questions</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">20+</div>
+            <div class="stat-label">Subjects</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number">24/7</div>
+            <div class="stat-label">Access</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="hero-image">
+        <div class="image-container">
+          <i class="fas fa-laptop-code"></i>
+          <div class="exam-badges">
+            <span class="exam-badge waec">WAEC</span>
+            <span class="exam-badge neco">NECO</span>
+            <span class="exam-badge jamb">JAMB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Why Smart Brain CBT?</h2>
+        <p class="section-subtitle">Everything you need for exam success in one platform</p>
+      </div>
+      
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-file-alt"></i>
+          </div>
+          <h3 class="feature-title">Exam-Aligned Questions</h3>
+          <p class="feature-desc">Practice with questions matching WAEC, NECO & JAMB formats and standards.</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-stopwatch"></i>
+          </div>
+          <h3 class="feature-title">Real Exam Timing</h3>
+          <p class="feature-desc">Simulate real exam conditions with timed practice sessions.</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-chart-line"></i>
+          </div>
+          <h3 class="feature-title">Progress Tracking</h3>
+          <p class="feature-desc">Monitor your improvement with detailed analytics and reports.</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-book"></i>
+          </div>
+          <h3 class="feature-title">All Subjects Covered</h3>
+          <p class="feature-desc">Science, Arts, and Commercial subjects organized for easy learning.</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-brain"></i>
+          </div>
+          <h3 class="feature-title">Skill Building</h3>
+          <p class="feature-desc">Build speed, accuracy, and confidence with targeted practice.</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-cloud"></i>
+          </div>
+          <h3 class="feature-title">Cloud Sync</h3>
+          <p class="feature-desc">Access your progress anywhere, on any device.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXAMS -->
+  <section class="exams" id="exams">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Exam Preparation</h2>
+        <p class="section-subtitle">Master all major Nigerian exams</p>
+      </div>
+      
+      <div class="exams-grid">
+        <div class="exam-card waec-card">
+          <div class="exam-header">
+            <i class="fas fa-graduation-cap"></i>
+            <h3>WAEC</h3>
+          </div>
+          <p>West African Examination Council preparation with past questions and syllabus coverage.</p>
+          <a href="login.html" class="exam-link">Start Practice <i class="fas fa-arrow-right"></i></a>
+        </div>
+        
+        <div class="exam-card neco-card">
+          <div class="exam-header">
+            <i class="fas fa-book-open"></i>
+            <h3>NECO</h3>
+          </div>
+          <p>National Examination Council practice with updated question patterns.</p>
+          <a href="login.html" class="exam-link">Start Practice <i class="fas fa-arrow-right"></i></a>
+        </div>
+        
+        <div class="exam-card jamb-card">
+          <div class="exam-header">
+            <i class="fas fa-university"></i>
+            <h3>JAMB</h3>
+          </div>
+          <p>Joint Admissions and Matriculation Board practice with UTME simulations.</p>
+          <a href="login.html" class="exam-link">Start Practice <i class="fas fa-arrow-right"></i></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <div class="container">
+      <div class="cta-content">
+        <h2>Ready to Boost Your Scores?</h2>
+        <p>Join thousands of students already improving with Smart Brain CBT.</p>
+        
+        <div class="cta-actions">
+          <a href="signup.html" class="btn btn-primary btn-large">
+            <i class="fas fa-user-plus"></i> Sign Up Free
+          </a>
+          <a href="#" class="btn btn-secondary btn-large">
+            <i class="fas fa-play"></i> Watch Demo
+          </a>
+        </div>
+        
+        <div class="cta-features">
+          <div class="feature">
+            <i class="fas fa-check-circle"></i>
+            <span>No credit card needed</span>
+          </div>
+          <div class="feature">
+            <i class="fas fa-check-circle"></i>
+            <span>Free trial available</span>
+          </div>
+          <div class="feature">
+            <i class="fas fa-check-circle"></i>
+            <span>Cancel anytime</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section class="contact" id="contact">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Get In Touch</h2>
+        <p class="section-subtitle">Have questions? We're here to help</p>
+      </div>
+      
+      <div class="contact-content">
+        <div class="contact-info">
+          <div class="contact-item">
+            <i class="fas fa-envelope"></i>
+            <div>
+              <h4>Email Us</h4>
+              <p>support@smartbraincbt.ng</p>
+            </div>
+          </div>
+          
+          <div class="contact-item">
+            <i class="fas fa-phone"></i>
+            <div>
+              <h4>Call Us</h4>
+              <p>+234 9044784225</p>
+            </div>
+          </div>
+          
+          <div class="contact-item">
+            <i class="fas fa-clock"></i>
+            <div>
+              <h4>Office Hours</h4>
+              <p>Mon - Fri: 8AM - 6PM</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="contact-form">
+          <form id="contactForm">
+            <div class="form-group">
+              <input type="text" id="user_name" name="user_name" placeholder="Your Name" required>
+              <div class="error-message" id="nameError"></div>
+            </div>
+            
+            <div class="form-group">
+              <input type="email" id="user_email" name="user_email" placeholder="Your Email" required>
+              <div class="error-message" id="emailError"></div>
+            </div>
+            
+            <div class="form-group">
+              <textarea id="message" name="message" placeholder="Your Message" rows="4" required></textarea>
+              <div class="error-message" id="messageError"></div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+              <i class="fas fa-paper-plane"></i> Send Message
+            </button>
+            
+            <div class="form-message" id="formMessage"></div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <div class="footer-logo">
+          <i class="fas fa-brain"></i>
+          <div>
+            <h3>Smart Brain CBT</h3>
+            <p>Empowering students for exam success</p>
+          </div>
+        </div>
+        <div class="social-links">
+          <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
+          <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
+          <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+          <a href="#" class="social-link"><i class="fab fa-whatsapp"></i></a>
+        </div>
+      </div>
+      
+      <div class="footer-links">
+        <div class="link-group">
+          <h4>Platform</h4>
+          <ul>
+            <li><a href="#">Home</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#exams">Exams</a></li>
+            <li><a href="#contact">Contact</a></li>
+          </ul>
+        </div>
+        
+        <div class="link-group">
+          <h4>Exams</h4>
+          <ul>
+            <li><a href="#">WAEC</a></li>
+            <li><a href="#">NECO</a></li>
+            <li><a href="#">JAMB</a></li>
+            <li><a href="#">Post-UTME</a></li>
+          </ul>
+        </div>
+        
+        <div class="link-group">
+          <h4>Support</h4>
+          <ul>
+            <li><a href="#contact">Help Center</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+            <li><a href="privacy.html">Privacy Policy</a></li>
+            <li><a href="terms.html">Terms of Service</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer-bottom">
+      <p>&copy; 2026 Smart Brain CBT. All rights reserved.</p>
+      <p class="made-for">Empowering students through technology</p>
+    </div>
+  </div>
+</footer>
+
+<script src="js/script.js"></script>
+<script src="js/contact.js"></script>
+</body>
+</html>

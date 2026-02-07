@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="author" content="Smart Brain CBT">
+  <title>Smart Brain CBT | Admin Panel</title>
+   <link rel="icon" type="image/png" href="img/Smart-brain-icon.png">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="header">
+    <div class="container header-container">
+      <div class="brand">
+        <div class="logo"><i class="fas fa-brain"></i></div>
+        <h1 class="brand-name">Smart Brain <span class="cbt">CBT</span></h1>
+      </div>
+
+      <!-- DESKTOP NAVIGATION -->
+      <nav class="desktop-nav">
+        <ul class="desktop-nav-list">
+          <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+          <li><a href="admin.html" class="active"><i class="fas fa-user-cog"></i> Admin</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- MOBILE MENU -->
+  <nav class="mobile-menu" id="mobileMenu">
+    <div class="container">
+      <ul class="nav-list">
+        <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+        <li><a href="admin.html" class="active"><i class="fas fa-user-cog"></i> Admin</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- MAIN ADMIN CONTENT -->
+  <main class="admin-main">
+    <div class="admin-container">
+      <h1 class="admin-title"><i class="fas fa-user-shield"></i> Administrator Panel</h1>
+      <p class="admin-subtitle">Manage questions, view users, and control the platform.</p>
+
+      <!-- TABS -->
+      <div class="admin-tabs">
+        <button class="tab-btn active" data-tab="question-manager"><i class="fas fa-edit"></i> Add Question</button>
+        <button class="tab-btn" data-tab="bulk-upload"><i class="fas fa-file-upload"></i> Bulk Upload</button>
+        <button class="tab-btn" data-tab="question-list"><i class="fas fa-list"></i> View/Edit Questions</button>
+        <button class="tab-btn" data-tab="student-manager"><i class="fas fa-users"></i> Manage Students</button>
+      </div>
+
+      <!-- TAB 1: ADD QUESTION -->
+      <section id="question-manager" class="tab-content active">
+        <h2><i class="fas fa-edit"></i> Add New Practice Question</h2>
+        <p class="section-info">All questions added here will be available for students in the general practice bank. <strong>You can use text, images, or both for questions and solutions.</strong></p>
+
+        <form id="addQuestionForm" class="admin-form">
+          <!-- Hidden field to store question ID for editing -->
+          <input type="hidden" id="questionId" name="questionId" value="">
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="examType"><i class="fas fa-graduation-cap"></i> Exam Type *</label>
+              <select id="examType" name="examType" class="form-control" required>
+                <option value="" disabled selected>Select Exam Type</option>
+                <option value="WAEC/NECO">WAEC/NECO</option>
+                <option value="JAMB">JAMB</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="subject"><i class="fas fa-book"></i> Subject *</label>
+              <select id="subject" name="subject" class="form-control" required>
+                <option value="" disabled selected>Choose subject</option>
+                <option value="mathematics">Mathematics</option>
+                <option value="english">English Language</option>
+                <option value="physics">Physics</option>
+                <option value="chemistry">Chemistry</option>
+                <option value="accounting">Accounting</option>
+                <option value="literature">Literature in English</option>
+                <option value="government">Government</option>
+                <option value="commerce">Commerce</option>
+                <option value="biology">Biology</option>
+                <option value="economics">Economics</option>
+                <option value="crk">Christian Religious Knowledge (CRK)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="timeLimit"><i class="fas fa-clock"></i> Time Per Question (Seconds) *</label>
+              <select id="timeLimit" name="timeLimit" class="form-control" required>
+                <option value="60">60 seconds (1 min)</option>
+                <option value="90">90 seconds (1.5 min)</option>
+                <option value="120" selected>120 seconds (2 min)</option>
+                <option value="180">180 seconds (3 min)</option>
+                <option value="240">240 seconds (4 min)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- QUESTION CONTENT SECTION -->
+          <div class="form-section">
+            <h3><i class="fas fa-question-circle"></i> Question Content (Text or Image)</h3>
+            <p class="section-hint">Provide either question text, question image, or both. At least one is required.</p>
+            
+            <div class="form-group">
+              <label for="questionText"><i class="fas fa-font"></i> Question Text (Optional)</label>
+              <textarea id="questionText" name="questionText" class="form-control question-textarea" rows="4" placeholder="Type the question text here... Paste with formatting preserved."></textarea>
+              <small class="form-hint"><strong>Formatting preserved:</strong> Spaces, new lines, mathematical symbols, superscript (x²), subscript (H₂O), integrals (∫), fractions (½) will appear exactly as typed.</small>
+            </div>
+
+            <div class="form-group">
+              <label for="questionImage"><i class="fas fa-image"></i> Question Image (Optional)</label>
+              <div class="image-upload-container">
+                <input type="file" id="questionImage" name="questionImage" class="form-control image-upload-input" accept="image/*">
+                <div class="image-preview-container" id="questionImagePreview" style="display: none;">
+                  <img id="questionImagePreviewImg" alt="Question image preview" class="image-preview">
+                  <button type="button" class="remove-image-btn" onclick="removeQuestionImage()">
+                    <i class="fas fa-times"></i> Remove Image
+                  </button>
+                </div>
+              </div>
+              <small class="form-hint">Upload an image for the question. Supported formats: JPG, PNG, GIF. Max size: 5MB</small>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="option-group">
+              <label for="optionA"><span class="option-label">A</span> Option A *</label>
+              <input type="text" id="optionA" name="optionA" class="form-control" placeholder="Enter choice A" required>
+            </div>
+            <div class="option-group">
+              <label for="optionB"><span class="option-label">B</span> Option B *</label>
+              <input type="text" id="optionB" name="optionB" class="form-control" placeholder="Enter choice B" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="option-group">
+              <label for="optionC"><span class="option-label">C</span> Option C *</label>
+              <input type="text" id="optionC" name="optionC" class="form-control" placeholder="Enter choice C" required>
+            </div>
+            <div class="option-group">
+              <label for="optionD"><span class="option-label">D</span> Option D *</label>
+              <input type="text" id="optionD" name="optionD" class="form-control" placeholder="Enter choice D" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="correctAnswer"><i class="fas fa-check-circle"></i> Correct Answer *</label>
+              <select id="correctAnswer" name="correctAnswer" class="form-control" required>
+                <option value="" disabled selected>Select correct option</option>
+                <option value="A">Option A</option>
+                <option value="B">Option B</option>
+                <option value="C">Option C</option>
+                <option value="D">Option D</option>
+              </select>
+            </div>
+
+            <!-- SOLUTION CONTENT SECTION -->
+            <div class="form-group">
+              <div class="form-section">
+                <h3><i class="fas fa-lightbulb"></i> Solution Content (Text or Image)</h3>
+                <p class="section-hint">Provide either solution text, solution image, or both. Both are optional but recommended.</p>
+                
+                <div class="form-group">
+                  <label for="solution"><i class="fas fa-font"></i> Solution Text (Optional)</label>
+                  <textarea id="solution" name="solution" class="form-control solution-textarea" rows="3" placeholder="Explain why this is the correct answer (optional but recommended). Paste with formatting preserved."></textarea>
+                  <small class="form-hint"><strong>Formatting preserved:</strong> Multi-line solutions, mathematical equations, special symbols, and spacing are kept exactly as typed.</small>
+                </div>
+
+                <div class="form-group">
+                  <label for="solutionImage"><i class="fas fa-image"></i> Solution Image (Optional)</label>
+                  <div class="image-upload-container">
+                    <input type="file" id="solutionImage" name="solutionImage" class="form-control image-upload-input" accept="image/*">
+                    <div class="image-preview-container" id="solutionImagePreview" style="display: none;">
+                      <img id="solutionImagePreviewImg" alt="Solution image preview" class="image-preview">
+                      <button type="button" class="remove-image-btn" onclick="removeSolutionImage()">
+                        <i class="fas fa-times"></i> Remove Image
+                      </button>
+                    </div>
+                  </div>
+                  <small class="form-hint">Upload an image for the solution explanation. Supported formats: JPG, PNG, GIF. Max size: 5MB</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="submitQuestionBtn" class="btn btn-primary"><i class="fas fa-save"></i> Save Question to Bank</button>
+            <button type="button" id="clearFormBtn" class="btn btn-secondary"><i class="fas fa-eraser"></i> Clear Form</button>
+            <button type="button" id="cancelEditBtn" class="btn btn-secondary" style="display:none;"><i class="fas fa-times"></i> Cancel Edit</button>
+          </div>
+        </form>
+
+        <div id="formFeedback" class="feedback-message"></div>
+        <div id="validationMessage" class="validation-message"></div>
+      </section>
+
+      <!-- NEW TAB: BULK UPLOAD -->
+      <section id="bulk-upload" class="tab-content">
+        <h2><i class="fas fa-file-upload"></i> Bulk Question Upload</h2>
+        <p class="section-info">Upload multiple questions at once using CSV or text format. Each question will be saved as a separate document in Firestore. <strong>Mathematical formatting is preserved in both methods.</strong></p>
+
+        <div class="bulk-upload-container">
+          <div class="upload-method-selector">
+            <button type="button" id="csvMethodBtn" class="method-btn active"><i class="fas fa-file-csv"></i> CSV Upload</button>
+            <button type="button" id="textMethodBtn" class="method-btn"><i class="fas fa-font"></i> Text Format</button>
+          </div>
+
+          <!-- CSV Upload Section -->
+          <div id="csvUploadSection" class="upload-section active">
+            <div class="upload-area">
+              <div class="upload-box" id="csvDropZone">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <h3>Upload CSV File</h3>
+                <p>Drag & drop your CSV file here or click to browse</p>
+                <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+                <button type="button" id="browseCsvBtn" class="btn btn-secondary"><i class="fas fa-folder-open"></i> Browse Files</button>
+                <p class="file-requirements">Maximum file size: 5MB | Supports mathematical formatting</p>
+              </div>
+              
+              <div class="preview-section">
+                <h4><i class="fas fa-table"></i> File Preview</h4>
+                <div id="csvPreview" class="preview-table">
+                  <p>No file selected. Upload a CSV file to see preview.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="template-section">
+              <h4><i class="fas fa-download"></i> Download Template</h4>
+              <p>Use this template to ensure proper formatting of your CSV file.</p>
+              <button type="button" id="downloadTemplateBtn" class="btn btn-secondary"><i class="fas fa-file-download"></i> Download CSV Template</button>
+              <div class="template-info">
+                <p><strong>CSV Format Requirements:</strong></p>
+                <ul>
+                  <li>Use the exact column headers from the template</li>
+                  <li>Keep mathematical expressions and special characters in quotes</li>
+                  <li>Use "A", "B", "C", "D" for correct option</li>
+                  <li>Maximum 5000 questions per file</li>
+                  <li><strong>Mathematical formatting preserved automatically</strong></li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="upload-progress" style="display: none;" id="uploadProgress">
+              <h4><i class="fas fa-sync-alt fa-spin"></i> Uploading Questions</h4>
+              <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+              </div>
+              <div class="progress-stats">
+                <span id="processedCount">0</span> / <span id="totalCount">0</span> questions processed
+                <span id="progressPercent">0%</span>
+              </div>
+            </div>
+
+            <div class="upload-actions">
+              <button type="button" id="startUploadBtn" class="btn btn-primary" disabled><i class="fas fa-upload"></i> Upload Questions</button>
+              <button type="button" id="cancelUploadBtn" class="btn btn-secondary" style="display:none;"><i class="fas fa-times"></i> Cancel Upload</button>
+            </div>
+          </div>
+
+          <!-- Text Format Section -->
+          <div id="textUploadSection" class="upload-section">
+            <div class="text-format-guide">
+              <h4><i class="fas fa-info-circle"></i> Text Format Guide</h4>
+              <p>Enter questions in this format, separated by blank lines. <strong>All formatting is preserved exactly.</strong></p>
+              <pre class="format-example">
+Q: If log₂ = 0.3010, find log₂₀
+A: 1.3010
+B: 1.6020
+C: 2.3010
+D: 2.6020
+Correct: A
+Solution: log₂₀ = log₂(4×5) = log₂4 + log₂5
+          = 2 + 0.3010 = 1.3010
+Subject: mathematics
+Exam Type: JAMB
+Time Limit: 90
+
+Q: Solve for x: 2x² - 5x + 3 = 0
+A: x = 1, x = 1.5
+B: x = 1, x = 2
+C: x = 0.5, x = 3
+D: x = 2, x = 3
+Correct: A
+Solution: Using quadratic formula:
+          x = [5 ± √(25 - 24)] / 4
+          = [5 ± 1] / 4
+          = 1 or 1.5
+Subject: mathematics
+Exam Type: WAEC/NECO
+Time Limit: 120</pre>
+            </div>
+
+            <div class="text-upload-area">
+              <textarea id="bulkTextInput" class="form-control bulk-textarea" rows="15" placeholder="Paste your questions in the format shown above... 
+
+IMPORTANT: 
+• Mathematical expressions stay exactly as typed
+• Multi-line questions and solutions are preserved
+• Symbols like ², ³, √, ∫, ∑, ∏ work correctly
+• Copy-paste from JAMB past questions works perfectly"></textarea>
+              <div class="form-hint"><strong>Formatting preserved:</strong> New lines, spaces, mathematical symbols, superscript (x²), subscript (H₂O), integrals (∫), fractions (½) will appear exactly as typed.</div>
+              <div class="text-upload-actions">
+                <button type="button" id="parseTextBtn" class="btn btn-secondary"><i class="fas fa-check"></i> Validate Format</button>
+                <button type="button" id="uploadTextBtn" class="btn btn-primary"><i class="fas fa-upload"></i> Upload Text Questions</button>
+              </div>
+              <div id="textPreview" class="preview-section"></div>
+            </div>
+          </div>
+
+          <div id="bulkUploadFeedback" class="feedback-message"></div>
+        </div>
+      </section>
+
+      <!-- TAB 2: QUESTION LIST -->
+      <section id="question-list" class="tab-content">
+        <h2><i class="fas fa-tasks"></i> Manage Question Bank</h2>
+        <p class="section-info">Search, edit, or delete questions from the platform bank. <strong>Hover over question previews to see full text with formatting.</strong></p>
+
+        <div class="search-box">
+          <input type="text" id="questionSearch" placeholder="Search by keyword, subject, or exam type">
+          <button id="searchBtn" class="btn-search"><i class="fas fa-search"></i> Search</button>
+        </div>
+
+        <div class="table-container">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Subject</th>
+                <th>Exam</th>
+                <th>Question Preview</th>
+                <th>Type</th>
+                <th>Correct</th>
+                <th>Time</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="questionTableBody">
+              <tr><td colspan="8" class="text-center">Loading question bank...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-actions">
+          <button id="loadMoreQuestions" class="btn btn-secondary"><i class="fas fa-sync"></i> Load More</button>
+        </div>
+      </section>
+
+      <!-- TAB 3: STUDENT MANAGER -->
+      <section id="student-manager" class="tab-content">
+        <h2><i class="fas fa-user-graduate"></i> Registered Students</h2>
+        <p class="section-info">Overview of all students using the platform.</p>
+
+        <div class="stats-overview">
+          <div class="stat-card">
+            <div class="stat-icon student-icon"><i class="fas fa-users"></i></div>
+            <div class="stat-content">
+              <h3>Total Students</h3>
+              <div class="stat-number" id="totalStudents">0</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon free-icon"><i class="fas fa-user-check"></i></div>
+            <div class="stat-content">
+              <h3>Free Plan</h3>
+              <div class="stat-number" id="freePlanStudents">0</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon premium-icon"><i class="fas fa-crown"></i></div>
+            <div class="stat-content">
+              <h3>Premium Plan</h3>
+              <div class="stat-number" id="premiumPlanStudents">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Student Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Plan</th>
+                <th>Joined Date</th>
+                <th>Tests Taken</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="studentTableBody">
+              <tr><td colspan="8" class="text-center">Loading student data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="dashboard-footer">
+    <button id="logoutBtn" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+  </footer>
+
+  <!-- SCRIPTS -->
+  <script src="js/script.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
