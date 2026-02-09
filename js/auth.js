@@ -1,4 +1,4 @@
-// auth.js - Fixed Authentication Code with Working Show Password
+// auth.js - Fixed Authentication with Strict Plan Enforcement
 import { db, auth } from "./main.js";
 import {
   createUserWithEmailAndPassword,
@@ -59,13 +59,28 @@ document.addEventListener("DOMContentLoaded", () => {
       const userSnap = await getDoc(userDocRef);
       
       if (userSnap.exists()) {
-        const role = userSnap.data().role;
+        const userData = userSnap.data();
+        const role = userData.role || "student";
+        const plan = userData.plan || "free";
+        
+        console.log("Redirect check - Role:", role, "Plan:", plan);
+        
         if (role === "admin") {
           window.location.href = "admin.html";
-        } else if (role === "student") {
+        } else {
           window.location.href = "dashboard.html";
         }
       } else {
+        console.log("No user document found, creating one...");
+        // Create basic user document if missing
+        await setDoc(doc(db, "users", userId), {
+          uid: userId,
+          email: auth.currentUser?.email || "",
+          role: "student",
+          plan: "free",
+          createdAt: serverTimestamp(),
+          lastLogin: serverTimestamp()
+        });
         window.location.href = "dashboard.html";
       }
     } catch (error) {
@@ -101,11 +116,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const userSignUp = async (e) => {
     e.preventDefault();
     
-    // Get form values - FIXED VARIABLE NAME
+    // Get form values
     const userFirstName = firstName ? firstName.value.trim() : "";
     const userLastName = lastName ? lastName.value.trim() : "";
     const userEmail = signUpEmail ? signUpEmail.value.trim().toLowerCase() : "";
-    const userPhone = phoneNumber ? phoneNumber.value.trim() : ""; // FIXED: Changed variable name
+    const userPhone = phoneNumber ? phoneNumber.value.trim() : "";
     const userPassword = signUpPassword ? signUpPassword.value : "";
     
     console.log("=== SIGN UP ATTEMPT ===");
@@ -113,6 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("Email:", userEmail);
     console.log("Phone:", userPhone);
     console.log("Password length:", userPassword.length);
+    console.log("Plan will be: free");
 
     // Validate inputs
     if (!userFirstName || !userLastName) {
@@ -162,12 +178,12 @@ document.addEventListener("DOMContentLoaded", () => {
         await updateProfile(user, {
           displayName: fullName
         });
-        console.log("✅ User profile updated with display name");
+        console.log("✅ User profile updated with display name:", fullName);
       } catch (profileError) {
         console.warn("⚠️ Could not update display name:", profileError);
       }
 
-      // 4. Save user data to Firestore
+      // 4. Save user data to Firestore - STRICTLY SET PLAN TO "free"
       console.log("Step 3: Preparing user data for Firestore...");
       
       const userData = {
@@ -176,9 +192,9 @@ document.addEventListener("DOMContentLoaded", () => {
         lastName: userLastName,
         fullName: fullName,
         email: userEmail.toLowerCase(),
-        phoneNumber: userPhone, // FIXED: Using correct variable name
-        role: "student",
-        plan: "free",
+        phoneNumber: userPhone,
+        role: "student", // Strictly student role
+        plan: "free",    // Strictly free plan - NO OTHER OPTIONS
         testsTaken: 0,
         averageScore: 0,
         status: "active",
@@ -187,7 +203,8 @@ document.addEventListener("DOMContentLoaded", () => {
         lastLogin: serverTimestamp()
       };
 
-      console.log("User data to save:", userData);
+      console.log("User data to save - VERIFY PLAN:", userData.plan);
+      console.log("Full user data:", userData);
       
       // Get the Firestore document reference
       const userDocRef = doc(db, "users", user.uid);
@@ -197,19 +214,34 @@ document.addEventListener("DOMContentLoaded", () => {
       // Save to Firestore
       await setDoc(userDocRef, userData);
       console.log("✅ SUCCESS: User data saved to Firestore!");
+      console.log("✅ PLAN CONFIRMED: 'free'");
       
       // Verify the document was created
       const verifyDoc = await getDoc(userDocRef);
       if (verifyDoc.exists()) {
+        const savedData = verifyDoc.data();
         console.log("✅ VERIFIED: Document exists in Firestore!");
-        console.log("Document data:", verifyDoc.data());
+        console.log("✅ PLAN VERIFICATION: Saved plan is", savedData.plan);
+        
+        if (savedData.plan !== "free") {
+          console.error("❌ CRITICAL: Plan is not 'free'! Actual plan:", savedData.plan);
+          alert("❌ CRITICAL ERROR: User plan not set correctly. Please contact support.");
+          return;
+        }
       } else {
         console.error("❌ ERROR: Document verification failed!");
       }
 
       // 5. Show success message and redirect
       console.log("Step 5: Success - redirecting to dashboard...");
-      alert(`🎉 Account created successfully!\n\nWelcome ${fullName}!`);
+      alert(`🎉 Account created successfully!\n\nWelcome ${fullName}!\n\nYour account is on the FREE plan.`);
+      
+      // Clear form
+      if (firstName) firstName.value = "";
+      if (lastName) lastName.value = "";
+      if (signUpEmail) signUpEmail.value = "";
+      if (phoneNumber) phoneNumber.value = "";
+      if (signUpPassword) signUpPassword.value = "";
       
       // Redirect to dashboard
       window.location.href = "dashboard.html";
@@ -242,10 +274,10 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (error.code === 'auth/operation-not-allowed') {
         errorMessage = "Email/password accounts are not enabled. Please contact support.";
       } else if (error.code === 'permission-denied') {
-        errorMessage = "❌ PERMISSION DENIED\n\nFirestore security rules are blocking user creation.\n\nPlease check your Firestore rules to allow users to write to their own document in the 'users' collection.";
+        errorMessage = "❌ PERMISSION DENIED\n\nFirestore security rules are blocking user creation.\n\nCheck console for details.";
       }
       
-      alert(`❌ ${errorMessage}\n\nCheck browser console (F12) for details.`);
+      alert(`❌ ${errorMessage}`);
       
       // Reset password field
       if (signUpPassword) signUpPassword.value = "";
@@ -275,52 +307,74 @@ document.addEventListener("DOMContentLoaded", () => {
       const user = userCredential.user;
       
       console.log("✅ User authenticated. UID:", user.uid);
+      console.log("Auth displayName:", user.displayName);
 
-      // Update last login time
-      try {
-        const userDocRef = doc(db, "users", user.uid);
-        await setDoc(userDocRef, {
-          lastLogin: serverTimestamp()
-        }, { merge: true });
-        console.log("Last login updated");
-      } catch (firestoreError) {
-        console.warn("Could not update last login time:", firestoreError);
-      }
-
-      // FETCH ROLE FROM FIRESTORE
+      // FETCH USER DATA FROM FIRESTORE - STRICT OWNERSHIP
       console.log("Fetching user data from Firestore...");
       const userDocRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userDocRef);
 
       if (userSnap.exists()) {
         const userData = userSnap.data();
-        const role = userData.role;
+        const role = userData.role || "student";
+        const plan = userData.plan || "free";
+        const fullName = userData.fullName || user.displayName || userData.firstName + " " + userData.lastName || "Student";
         
-        console.log("✅ User data found in Firestore:", userData);
-        console.log("User role:", role);
+        console.log("✅ User data found in Firestore - VERIFICATION:");
+        console.log("- UID in document:", userData.uid);
+        console.log("- Name:", fullName);
+        console.log("- Role:", role);
+        console.log("- Plan:", plan);
+        console.log("- Email:", userData.email);
+        
+        // SECURITY CHECK: Verify the document belongs to this user
+        if (userData.uid !== user.uid) {
+          console.error("❌ SECURITY ALERT: Document UID doesn't match auth UID!");
+          alert("❌ Security error detected. Please contact support.");
+          await signOut(auth);
+          return;
+        }
+        
+        // PLAN VERIFICATION: Must be either "free" or undefined (defaults to free)
+        if (plan !== "free") {
+          console.warn("⚠️ User has non-free plan:", plan);
+        }
 
+        // Update last login time
+        try {
+          await setDoc(userDocRef, {
+            lastLogin: serverTimestamp()
+          }, { merge: true });
+          console.log("Last login updated");
+        } catch (firestoreError) {
+          console.warn("Could not update last login time:", firestoreError);
+        }
+
+        // WELCOME MESSAGE WITH PLAN INFO
+        const welcomeMessage = role === "admin" 
+          ? `👋 Welcome back, Admin ${fullName}!` 
+          : `👋 Welcome back, ${fullName}!`;
+        
+        console.log("Redirecting user...");
+        alert(welcomeMessage);
+        
         // REDIRECT BASED ON ROLE
         if (role === "admin") {
-          alert(`👋 Welcome back, Admin ${userData.fullName || ''}!`);
           window.location.href = "admin.html";
-        } else if (role === "student") {
-          alert(`👋 Welcome back, ${userData.fullName || 'Student'}!`);
-          window.location.href = "dashboard.html";
         } else {
-          alert("⚠️ Role not recognized. Defaulting to student dashboard.");
           window.location.href = "dashboard.html";
         }
       } else {
         console.error("❌ User document does not exist in Firestore");
         
-        // Create user document if it doesn't exist
+        // Create minimal user document if it doesn't exist (should not happen for existing users)
         console.log("Creating missing user document in Firestore...");
         const userData = {
           uid: user.uid,
           email: userEmail,
           fullName: user.displayName || "Student",
           role: "student",
-          plan: "free",
+          plan: "free", // Strictly free
           testsTaken: 0,
           averageScore: 0,
           status: "active",
@@ -329,9 +383,13 @@ document.addEventListener("DOMContentLoaded", () => {
         };
         
         await setDoc(doc(db, "users", user.uid), userData);
-        alert("✅ Account profile created. Redirecting to dashboard...");
+        alert("✅ Your account has been set up. You're on the FREE plan.\n\nRedirecting to dashboard...");
         window.location.href = "dashboard.html";
       }
+
+      // Clear form
+      if (loginEmail) loginEmail.value = "";
+      if (loginPassword) loginPassword.value = "";
 
     } catch (error) {
       console.error("Login error:", error);
@@ -364,6 +422,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const userLogout = async () => {
     try {
       await signOut(auth);
+      console.log("User logged out successfully");
       window.location.href = "index.html";
     } catch (error) {
       console.error("Logout error:", error);
@@ -434,5 +493,5 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  console.log("✅ Auth.js loaded successfully");
+  console.log("✅ Auth.js loaded successfully with strict plan enforcement");
 });
