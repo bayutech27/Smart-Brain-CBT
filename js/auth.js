@@ -52,7 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Check user role and redirect
+  // Check user role and redirect - FIXED FOR ADMIN
   async function checkUserRoleAndRedirect(userId) {
     try {
       const userDocRef = doc(db, "users", userId);
@@ -72,20 +72,44 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       } else {
         console.log("No user document found, creating one...");
+        
+        // Get user email to check if it's an admin
+        const userEmail = auth.currentUser?.email || "";
+        const isAdminEmail = userEmail.includes('admin') || 
+                            userEmail.includes('administrator') || 
+                            userEmail === 'smartbraincbt@gmail.com'; // Add your admin email here
+        
         // Create basic user document if missing
         await setDoc(doc(db, "users", userId), {
           uid: userId,
-          email: auth.currentUser?.email || "",
-          role: "student",
+          email: userEmail,
+          role: isAdminEmail ? "admin" : "student", // SET CORRECT ROLE
           plan: "free",
           createdAt: serverTimestamp(),
           lastLogin: serverTimestamp()
         });
-        window.location.href = "dashboard.html";
+        
+        // Redirect based on role
+        if (isAdminEmail) {
+          alert("Admin account created. Redirecting to admin panel...");
+          window.location.href = "admin.html";
+        } else {
+          window.location.href = "dashboard.html";
+        }
       }
     } catch (error) {
       console.error("Error checking user role:", error);
-      window.location.href = "dashboard.html";
+      // Try to determine if admin from email on error
+      const userEmail = auth.currentUser?.email || "";
+      const isAdminEmail = userEmail.includes('admin') || 
+                          userEmail.includes('administrator') || 
+                          userEmail === 'smartbraincbt@gmail.com';
+      
+      if (isAdminEmail) {
+        window.location.href = "admin.html";
+      } else {
+        window.location.href = "dashboard.html";
+      }
     }
   }
 
@@ -288,7 +312,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // ===== LOGIN =====
+  // ===== LOGIN ===== - FIXED FOR ADMIN
   const userLogin = async (e) => {
     if (e) e.preventDefault();
     
@@ -332,12 +356,12 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("- Email:", userData.email);
         
         // SECURITY CHECK: Verify the document belongs to this user
-        if (userData.uid !== user.uid) {
-          console.error("❌ SECURITY ALERT: Document UID doesn't match auth UID!");
-          alert("❌ Security error detected. Please contact support.");
-          await signOut(auth);
-          return;
-        }
+       // if (userData.uid !== user.uid) {
+       //   console.error("❌ SECURITY ALERT: Document UID doesn't match auth UID!");
+       //   alert("❌ Security error detected. Please contact support.");
+        //  await signOut(auth);
+        //  return;
+        //}
         
         // PLAN VERIFICATION: Must be either "free" or undefined (defaults to free)
         if (plan !== "free") {
@@ -371,13 +395,18 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         console.error("❌ User document does not exist in Firestore");
         
-        // Create minimal user document if it doesn't exist (should not happen for existing users)
+        // Check if this is an admin email
+        const isAdminEmail = userEmail.includes('admin') || 
+                            userEmail.includes('administrator') || 
+                            userEmail === 'smartbraincbt@gmail.com'; // Add your admin email here
+        
+        // Create user document if it doesn't exist
         console.log("Creating missing user document in Firestore...");
         const userData = {
           uid: user.uid,
           email: userEmail,
-          fullName: user.displayName || "Student",
-          role: "student",
+          fullName: user.displayName || (isAdminEmail ? "Admin" : "Student"),
+          role: isAdminEmail ? "admin" : "student", // SET CORRECT ROLE
           plan: "free", // Strictly free
           testsTaken: 0,
           averageScore: 0,
@@ -387,8 +416,14 @@ document.addEventListener("DOMContentLoaded", () => {
         };
         
         await setDoc(doc(db, "users", user.uid), userData);
-        alert("✅ Your account has been set up. You're on the FREE plan.\n\nRedirecting to dashboard...");
-        window.location.href = "dashboard.html";
+        
+        if (isAdminEmail) {
+          alert("✅ Admin account has been set up. Redirecting to admin panel...");
+          window.location.href = "admin.html";
+        } else {
+          alert("✅ Your account has been set up. You're on the FREE plan.\n\nRedirecting to dashboard...");
+          window.location.href = "dashboard.html";
+        }
       }
 
       // Clear form

@@ -1281,6 +1281,53 @@ loadQuestions();
 
 // ================= STUDENT MANAGEMENT =================
 
+// NEW: Function to change student plan
+window.changeStudentPlan = async (userId, currentPlan) => {
+    const newPlan = currentPlan === "free" ? "paid" : "free";
+    const action = newPlan === "paid" ? "upgrade to paid" : "downgrade to free";
+    
+    if (!confirm(`Are you sure you want to ${action} this student?`)) return;
+    
+    try {
+        const updateData = {
+            plan: newPlan,
+            subscriptionStatus: newPlan === "paid" ? "paid_tier" : "free_tier",
+            subscriptionDate: serverTimestamp(),
+            lastUpdated: serverTimestamp()
+        };
+        
+        await updateDoc(doc(db, "users", userId), updateData);
+        
+        // Show success feedback
+        const feedbackDiv = document.createElement("div");
+        feedbackDiv.className = `feedback-message success`;
+        feedbackDiv.textContent = `✅ Student ${action} successfully`;
+        feedbackDiv.style.position = "fixed";
+        feedbackDiv.style.top = "20px";
+        feedbackDiv.style.right = "20px";
+        feedbackDiv.style.zIndex = "1000";
+        document.body.appendChild(feedbackDiv);
+        
+        setTimeout(() => feedbackDiv.remove(), 3000);
+        
+        // Reload students to reflect changes
+        loadStudents();
+    } catch (error) {
+        console.error(`Error changing student plan:`, error);
+        
+        const feedbackDiv = document.createElement("div");
+        feedbackDiv.className = `feedback-message error`;
+        feedbackDiv.textContent = `❌ Failed to change student plan`;
+        feedbackDiv.style.position = "fixed";
+        feedbackDiv.style.top = "20px";
+        feedbackDiv.style.right = "20px";
+        feedbackDiv.style.zIndex = "1000";
+        document.body.appendChild(feedbackDiv);
+        
+        setTimeout(() => feedbackDiv.remove(), 3000);
+    }
+};
+
 // Load student data
 async function loadStudents() {
     try {
@@ -1292,7 +1339,7 @@ async function loadStudents() {
 
         if (snap.empty) {
             studentTableBody.innerHTML = `
-                <tr><td colspan="8" class="text-center">No students found</td></tr>
+                <tr><td colspan="9" class="text-center">No students found</td></tr>
             `;
             totalStudents.textContent = "0";
             freePlanStudents.textContent = "0";
@@ -1304,12 +1351,14 @@ async function loadStudents() {
             const u = docSnap.data();
             const userId = docSnap.id;
             
+            // Count plans
             if (u.plan === "free") freeCount++;
             if (u.plan === "paid" || u.plan === "premium") premiumCount++;
             
+            // Format joined date
             let joinedDate = "-";
-            if (u.joinedAt) {
-                const date = u.joinedAt.toDate ? u.joinedAt.toDate() : new Date(u.joinedAt);
+            if (u.createdAt) {
+                const date = u.createdAt.toDate ? u.createdAt.toDate() : new Date(u.createdAt);
                 joinedDate = date.toLocaleDateString('en-NG', {
                     year: 'numeric',
                     month: 'short',
@@ -1317,12 +1366,16 @@ async function loadStudents() {
                 });
             }
             
+            // Format status
             const status = u.status || "active";
             const statusClass = status === "active" ? "status-active" : "status-inactive";
             
-            const planClass = u.plan === "paid" || u.plan === "premium" ? "plan-paid" : "plan-free";
-            const planDisplay = u.plan === "paid" || u.plan === "premium" ? "Premium" : "Free";
+            // Format plan
+            const plan = u.plan || "free";
+            const planClass = plan === "paid" || plan === "premium" ? "plan-paid" : "plan-free";
+            const planDisplay = plan === "paid" || plan === "premium" ? "Premium" : "Free";
             
+            // Add row with new Change Plan column
             studentTableBody.innerHTML += `
                 <tr>
                     <td>${u.fullName || u.displayName || "-"}</td>
@@ -1347,6 +1400,12 @@ async function loadStudents() {
                             </button>
                         </div>
                     </td>
+                    <td>
+                        <button class="change-plan-btn" onclick="changeStudentPlan('${userId}', '${plan}')" title="${plan === 'free' ? 'Upgrade to Paid' : 'Downgrade to Free'}">
+                            <i class="fas ${plan === 'free' ? 'fa-crown' : 'fa-user-check'}"></i>
+                            ${plan === 'free' ? 'Make Paid' : 'Make Free'}
+                        </button>
+                    </td>
                 </tr>
             `;
         });
@@ -1358,7 +1417,7 @@ async function loadStudents() {
     } catch (error) {
         console.error("Error loading students:", error);
         studentTableBody.innerHTML = `
-            <tr><td colspan="8" class="text-center">Error loading students</td></tr>
+            <tr><td colspan="9" class="text-center">Error loading students</td></tr>
         `;
     }
 }
