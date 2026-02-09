@@ -195,7 +195,11 @@ document.addEventListener("DOMContentLoaded", () => {
         phoneNumber: userPhone,
         role: "student", // Strictly student role
         plan: "free",    // Strictly free plan - NO OTHER OPTIONS
+        subscriptionDate: serverTimestamp(),
         testsTaken: 0,
+        totalTestsTaken: 0,
+        testsTakenThisWeek: 0,
+        lastTestResetDate: serverTimestamp(),
         averageScore: 0,
         status: "active",
         profilePicture: "",
