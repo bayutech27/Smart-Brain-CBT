@@ -617,6 +617,30 @@ textarea.form-control {
     transform: scale(1.1);
 }
 
+/* PLAN CHANGE BUTTON STYLES */
+.change-plan-btn {
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.change-plan-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(155, 89, 182, 0.3);
+    background: linear-gradient(135deg, #8e44ad, #9b59b6);
+}
+
 .plan-badge {
     display: inline-block;
     padding: 0.4rem 0.8rem;
@@ -1378,5 +1402,10 @@ textarea.form-control {
     .image-preview {
         max-width: 200px;
         max-height: 150px;
+    }
+    
+    .change-plan-btn {
+        padding: 6px 12px;
+        font-size: 0.8rem;
     }
 }
