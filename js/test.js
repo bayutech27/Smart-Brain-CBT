@@ -48,10 +48,8 @@ let currentQuestionIndex = 0;
 
 // Initialize test page
 document.addEventListener('DOMContentLoaded', () => {
-    // Set current year
     document.getElementById('currentYear').textContent = new Date().getFullYear();
     
-    // Check authentication
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
             window.location.href = 'index.html';
@@ -60,7 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Event listeners
     prevBtn.addEventListener('click', showPreviousQuestion);
     nextBtn.addEventListener('click', showNextQuestion);
     getResultBtn.addEventListener('click', showSubmitModal);
@@ -68,11 +65,10 @@ document.addEventListener('DOMContentLoaded', () => {
     confirmSubmit.addEventListener('click', submitTest);
     backToDashboard.addEventListener('click', goToDashboard);
     
-    // Keyboard navigation
     document.addEventListener('keydown', handleKeyboardNavigation);
 });
 
-// Load test data from sessionStorage AND fetch user plan
+// Load test data from sessionStorage
 async function loadTestData() {
     const savedTest = sessionStorage.getItem('currentTest');
     
@@ -86,10 +82,8 @@ async function loadTestData() {
         testData = JSON.parse(savedTest);
         console.log("Test data loaded:", testData);
         
-        // Fetch user's plan from Firestore if not already in testData
-        if (!testData.plan) {
-            await fetchUserPlan();
-        }
+        // Fetch fresh user plan from Firestore
+        await fetchUserPlan();
         
         initializeTest();
     } catch (error) {
@@ -99,7 +93,7 @@ async function loadTestData() {
     }
 }
 
-// Fetch user's plan from Firestore
+// FIXED: Fetch user's plan from Firestore with proper error handling
 async function fetchUserPlan() {
     try {
         const user = auth.currentUser;
@@ -115,14 +109,13 @@ async function fetchUserPlan() {
         if (userDoc.exists()) {
             const userData = userDoc.data();
             testData.plan = userData.plan || 'free';
-            console.log("User plan fetched from Firestore:", testData.plan);
+            console.log("Fresh user plan fetched from Firestore:", testData.plan);
         } else {
-            console.log("User document not found, defaulting to free plan");
-            testData.plan = 'free';
+            console.log("User document not found, using session data");
         }
     } catch (error) {
         console.error("Error fetching user plan:", error);
-        testData.plan = 'free';
+        // Keep existing plan data from sessionStorage
     }
 }
 
@@ -158,7 +151,163 @@ function initializeTest() {
     updateAnsweredCount();
 }
 
-// Load question with image support
+// FIXED: Save test result ONLY to Firestore (no localStorage fallback)
+async function saveTestResultToFirestore(score, correctAnswers) {
+    try {
+        const user = auth.currentUser;
+        if (!user) {
+            throw new Error("User not authenticated");
+        }
+        
+        const subjectName = testData.subject ? 
+            testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 
+            'Unknown Subject';
+        
+        // Create result data
+        const resultData = {
+            userId: user.uid,
+            userName: user.displayName || user.email || "Anonymous",
+            testId: testData.testId || `test-${Date.now()}`,
+            examType: testData.examType || "Practice",
+            subject: testData.subject || "general",
+            subjectName: subjectName,
+            score: score,
+            totalQuestions: testData.questions.length,
+            correctAnswers: correctAnswers,
+            userAnswers: testData.userAnswers,
+            completedAt: serverTimestamp(),
+            timeSpent: (testData.totalTime || (testData.questions.length * 120)) - timeRemaining,
+            plan: testData.plan || 'free',
+            // Store question IDs for reference
+            questionIds: testData.questions.map(q => q.id || 'unknown')
+        };
+        
+        console.log("Saving test result to Firestore:", resultData);
+        
+        // Save to Firestore
+        const docRef = await addDoc(collection(db, "test_results"), resultData);
+        console.log('✅ Test result saved to Firestore with ID:', docRef.id);
+        return docRef.id;
+        
+    } catch (error) {
+        console.error('❌ Error saving test result to Firestore:', error);
+        throw error; // Re-throw to handle in calling function
+    }
+}
+
+// FIXED: Submit test - only Firestore, no localStorage
+async function submitTest() {
+    hideSubmitModal();
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
+    
+    getResultBtn.classList.add('btn-loading');
+    getResultBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculating Score...';
+    
+    try {
+        // Calculate score
+        let correctAnswers = 0;
+        testData.questions.forEach((question, index) => {
+            const userAnswer = testData.userAnswers[index];
+            const correctAnswer = question.correctAnswer;
+            
+            if (userAnswer === correctAnswer) {
+                correctAnswers++;
+            }
+        });
+        
+        const score = Math.round((correctAnswers / testData.questions.length) * 100);
+        
+        // FIXED: Save ONLY to Firestore (no localStorage fallback)
+        let saveSuccessful = false;
+        try {
+            await saveTestResultToFirestore(score, correctAnswers);
+            saveSuccessful = true;
+        } catch (firestoreError) {
+            console.error('Firestore save failed:', firestoreError);
+            // Show error to user but continue with results
+        }
+        
+        // Generate performance message
+        let message = "";
+        if (score >= 90) message = "Excellent! You're a master of this subject!";
+        else if (score >= 80) message = "Great job! You have a strong understanding.";
+        else if (score >= 70) message = "Good work! Keep practicing to improve.";
+        else if (score >= 60) message = "Not bad! Review the topics you missed.";
+        else message = "Keep practicing! You'll improve with more study.";
+        
+        // Add save status to message
+        if (!saveSuccessful) {
+            message += " (Could not save results to server)";
+        }
+        
+        // Show results
+        showResults(score, correctAnswers, message);
+        
+    } catch (error) {
+        console.error('Error in submitTest:', error);
+        
+        // Even on error, show results with calculated score
+        try {
+            let correctAnswers = 0;
+            if (testData && testData.questions && testData.userAnswers) {
+                testData.questions.forEach((question, index) => {
+                    const userAnswer = testData.userAnswers[index];
+                    const correctAnswer = question.correctAnswer;
+                    
+                    if (userAnswer === correctAnswer) {
+                        correctAnswers++;
+                    }
+                });
+                
+                const score = testData.questions.length > 0 ? 
+                    Math.round((correctAnswers / testData.questions.length) * 100) : 0;
+                
+                showResults(score, correctAnswers, "Test completed (results not saved to server)");
+            } else {
+                throw new Error("Invalid test data");
+            }
+        } catch (fallbackError) {
+            console.error('Fallback also failed:', fallbackError);
+            getResultBtn.classList.remove('btn-loading');
+            getResultBtn.innerHTML = '<i class="fas fa-check-circle"></i> Submit Test';
+            alert('Error submitting test. Please try again or contact support.');
+        }
+    }
+}
+
+// Show results modal
+function showResults(score, correctAnswers, message) {
+    getResultBtn.classList.remove('btn-loading');
+    getResultBtn.innerHTML = '<i class="fas fa-check-circle"></i> Submit Test';
+    
+    finalScore.textContent = score;
+    correctCount.textContent = correctAnswers;
+    totalQuestionsCount.textContent = testData.questions.length;
+    performanceMessage.textContent = message;
+    
+    resultsModal.style.display = 'flex';
+    addSolutionButton();
+    
+    // Clean up sessionStorage
+    try {
+        sessionStorage.removeItem('currentTest');
+        sessionStorage.setItem('previousTest', JSON.stringify({
+            ...testData,
+            finalScore: score,
+            correctAnswers: correctAnswers,
+            completedAt: new Date().toISOString()
+        }));
+    } catch (e) {
+        console.warn('Could not update sessionStorage:', e);
+    }
+}
+
+// =============================================
+// REST OF FUNCTIONS (UNCHANGED)
+// =============================================
+
 function loadQuestion(index) {
     if (!testData || !testData.questions || index < 0 || index >= testData.questions.length) {
         console.error("Invalid question index or questions missing");
@@ -173,17 +322,14 @@ function loadQuestion(index) {
         return;
     }
     
-    // Clear question content
     questionContent.innerHTML = '';
     
-    // Check if we have question text, image, or both
     const hasQuestionText = question.questionText && question.questionText.trim() !== '';
     const hasQuestionImage = question.questionImage;
     
     let questionHTML = '';
     
     if (hasQuestionText && hasQuestionImage) {
-        // Display both text and image
         questionHTML = `
             <div class="question-text-content">
                 ${formatTextForDisplay(question.questionText)}
@@ -198,14 +344,12 @@ function loadQuestion(index) {
             </div>
         `;
     } else if (hasQuestionText) {
-        // Display only text
         questionHTML = `
             <div class="question-text-content">
                 ${formatTextForDisplay(question.questionText)}
             </div>
         `;
     } else if (hasQuestionImage) {
-        // Display only image
         questionHTML = `
             <div class="question-image-container">
                 <img src="${question.questionImage}" 
@@ -217,7 +361,6 @@ function loadQuestion(index) {
             </div>
         `;
     } else {
-        // No content - show error
         questionHTML = `<div class="question-text-content">Question content not available</div>`;
     }
     
@@ -258,7 +401,6 @@ function loadQuestion(index) {
     updateProgressBar();
 }
 
-// Select option
 function selectOption(optionLetter) {
     document.querySelectorAll('.option').forEach(option => {
         option.classList.remove('selected');
@@ -274,7 +416,6 @@ function selectOption(optionLetter) {
     updateAnsweredCount();
 }
 
-// Generate question dots
 function generateQuestionDots() {
     if (!testData || !testData.questions) return;
     
@@ -297,7 +438,6 @@ function generateQuestionDots() {
     }
 }
 
-// Update active dot
 function updateActiveDot(index) {
     document.querySelectorAll('.dot').forEach((dot, i) => {
         dot.classList.remove('active');
@@ -307,7 +447,6 @@ function updateActiveDot(index) {
     });
 }
 
-// Update answered dot
 function updateAnsweredDot(index) {
     const dot = document.querySelector(`.dot[data-index="${index}"]`);
     if (dot) {
@@ -315,7 +454,6 @@ function updateAnsweredDot(index) {
     }
 }
 
-// Update progress bar
 function updateProgressBar() {
     if (!testData || !testData.questions) return;
     
@@ -323,7 +461,6 @@ function updateProgressBar() {
     progressBar.style.width = `${progress}%`;
 }
 
-// Update answered count
 function updateAnsweredCount() {
     if (!testData || !testData.userAnswers) return;
     
@@ -331,21 +468,18 @@ function updateAnsweredCount() {
     answeredCount.textContent = answered;
 }
 
-// Show previous question
 function showPreviousQuestion() {
     if (currentQuestionIndex > 0) {
         loadQuestion(currentQuestionIndex - 1);
     }
 }
 
-// Show next question
 function showNextQuestion() {
     if (currentQuestionIndex < testData.questions.length - 1) {
         loadQuestion(currentQuestionIndex + 1);
     }
 }
 
-// Start timer
 function startTimer() {
     updateTimerDisplay();
     
@@ -364,25 +498,21 @@ function startTimer() {
     }, 1000);
 }
 
-// Update timer display
 function updateTimerDisplay() {
     const minutes = Math.floor(timeRemaining / 60);
     const seconds = timeRemaining % 60;
     timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-// Show submit modal
 function showSubmitModal() {
     updateAnsweredCount();
     submitModal.style.display = 'flex';
 }
 
-// Hide submit modal
 function hideSubmitModal() {
     submitModal.style.display = 'none';
 }
 
-// Auto submit when time runs out
 function autoSubmitTest() {
     getResultBtn.classList.add('btn-loading');
     getResultBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Time\'s Up! Submitting...';
@@ -392,267 +522,6 @@ function autoSubmitTest() {
     }, 1000);
 }
 
-// FIXED: Only update total test count (weekly count already updated in dashboard.js)
-async function updateTotalTestCountInFirestore() {
-    try {
-        const user = auth.currentUser;
-        if (!user) {
-            console.error("No user logged in to update test count");
-            return;
-        }
-        
-        const userRef = doc(db, "users", user.uid);
-        
-        // ⭐⭐ ONLY update totalTestsTaken, NOT testsTakenThisWeek ⭐⭐
-        // (weekly count was already updated in dashboard.js when test started)
-        await updateDoc(userRef, {
-            totalTestsTaken: increment(1), // Only increment total
-            lastActivity: serverTimestamp()
-        });
-        
-        console.log("✅ Total test count incremented in Firestore");
-    } catch (error) {
-        console.error("❌ Error updating total test count in Firestore:", error);
-        // Don't throw error here - we don't want to prevent test submission
-        // if there's an issue with updating the count
-    }
-}
-
-// Save test result to Firestore - FIXED VERSION
-async function saveTestResultToFirestore(score, correctAnswers) {
-    try {
-        const user = auth.currentUser;
-        if (!user) {
-            console.error("No user logged in to save test result");
-            throw new Error("User not authenticated");
-        }
-        
-        const subjectName = testData.subject ? 
-            testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 
-            'Unknown Subject';
-        
-        // Prepare questions data without images to reduce size
-        const questionsData = testData.questions.map((q, index) => ({
-            id: q.id || `q-${index}`,
-            questionText: q.questionText ? (q.questionText.length > 100 ? q.questionText.substring(0, 100) + "..." : q.questionText) : "",
-            hasQuestionImage: !!q.questionImage,
-            correctAnswer: q.correctAnswer || "",
-            userAnswer: testData.userAnswers[index] || null
-        }));
-        
-        // Create a lean result data object
-        const resultData = {
-            userId: user.uid,
-            userName: user.displayName || user.email || "Anonymous",
-            testId: testData.testId || `test-${Date.now()}`,
-            examType: testData.examType || "Practice",
-            subject: testData.subject || "general",
-            subjectName: subjectName,
-            score: score,
-            totalQuestions: testData.questions.length,
-            correctAnswers: correctAnswers,
-            userAnswers: testData.userAnswers,
-            questions: questionsData,
-            completedAt: serverTimestamp(),
-            timeSpent: (testData.totalTime || (testData.questions.length * 120)) - timeRemaining,
-            plan: testData.plan || 'free'
-        };
-        
-        console.log("Saving test result to Firestore:", resultData);
-        
-        // Try to save to Firestore
-        const docRef = await addDoc(collection(db, "test_results"), resultData);
-        console.log('✅ Test result saved to Firestore with ID:', docRef.id);
-        return docRef.id;
-        
-    } catch (error) {
-        console.error('❌ Error saving test result to Firestore:', error);
-        console.error('Error details:', {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            stack: error.stack
-        });
-        
-        // Check for specific Firestore errors
-        if (error.code === 'permission-denied') {
-            throw new Error("Permission denied. Check Firestore rules.");
-        } else if (error.code === 'invalid-argument') {
-            throw new Error("Invalid data format. Some data may be too large or malformed.");
-        } else if (error.message && error.message.includes('size')) {
-            throw new Error("Data too large for Firestore. Try reducing image sizes.");
-        }
-        
-        throw error;
-    }
-}
-
-// Alternative: Save to localStorage if Firestore fails
-function saveTestResultToLocalStorage(score, correctAnswers) {
-    try {
-        const user = auth.currentUser;
-        const resultData = {
-            userId: user?.uid || "anonymous",
-            testId: testData.testId || `test-${Date.now()}`,
-            subject: testData.subject,
-            examType: testData.examType,
-            score: score,
-            correctAnswers: correctAnswers,
-            totalQuestions: testData.questions.length,
-            completedAt: new Date().toISOString(),
-            timeSpent: (testData.totalTime || (testData.questions.length * 120)) - timeRemaining
-        };
-        
-        // Get existing results or initialize empty array
-        const existingResults = JSON.parse(localStorage.getItem('localTestResults') || '[]');
-        existingResults.push(resultData);
-        
-        // Save back to localStorage (limit to last 50 tests)
-        const limitedResults = existingResults.slice(-50);
-        localStorage.setItem('localTestResults', JSON.stringify(limitedResults));
-        
-        console.log('✅ Test result saved to localStorage:', resultData);
-        return 'local-' + Date.now();
-        
-    } catch (error) {
-        console.error('❌ Error saving to localStorage:', error);
-        throw error;
-    }
-}
-
-// Submit test - FIXED WITH PROPER COUNT UPDATES
-async function submitTest() {
-    hideSubmitModal();
-    if (timerInterval) {
-        clearInterval(timerInterval);
-    }
-    
-    getResultBtn.classList.add('btn-loading');
-    getResultBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculating Score...';
-    
-    try {
-        // Calculate score
-        let correctAnswers = 0;
-        testData.questions.forEach((question, index) => {
-            const userAnswer = testData.userAnswers[index];
-            const correctAnswer = question.correctAnswer;
-            
-            if (userAnswer === correctAnswer) {
-                correctAnswers++;
-            }
-        });
-        
-        const score = Math.round((correctAnswers / testData.questions.length) * 100);
-        
-        // ⭐⭐ FIXED: Update ONLY total test count (weekly count already updated) ⭐⭐
-        console.log("Updating total test count for completed test...");
-        await updateTotalTestCountInFirestore();
-        
-        let saveSuccessful = false;
-        let saveMethod = '';
-        
-        // Try to save to Firestore first
-        try {
-            await saveTestResultToFirestore(score, correctAnswers);
-            saveSuccessful = true;
-            saveMethod = 'firestore';
-        } catch (firestoreError) {
-            console.warn('Firestore save failed, trying localStorage:', firestoreError);
-            
-            // Fallback to localStorage
-            try {
-                await saveTestResultToLocalStorage(score, correctAnswers);
-                saveSuccessful = true;
-                saveMethod = 'localStorage';
-            } catch (localStorageError) {
-                console.error('Both save methods failed:', localStorageError);
-                saveSuccessful = false;
-            }
-        }
-        
-        if (!saveSuccessful) {
-            // Even if save fails, still show results
-            console.warn('Could not save test result, but showing results anyway');
-        }
-        
-        // Generate performance message
-        let message = "";
-        if (score >= 90) message = "Excellent! You're a master of this subject!";
-        else if (score >= 80) message = "Great job! You have a strong understanding.";
-        else if (score >= 70) message = "Good work! Keep practicing to improve.";
-        else if (score >= 60) message = "Not bad! Review the topics you missed.";
-        else message = "Keep practicing! You'll improve with more study.";
-        
-        // Add save status to message
-        if (saveMethod === 'localStorage') {
-            message += " (Results saved locally)";
-        } else if (!saveSuccessful) {
-            message += " (Could not save results)";
-        }
-        
-        // Show results immediately
-        showResults(score, correctAnswers, message);
-        
-    } catch (error) {
-        console.error('Error in submitTest:', error);
-        
-        // Even on error, try to show results with basic score calculation
-        try {
-            let correctAnswers = 0;
-            if (testData && testData.questions && testData.userAnswers) {
-                testData.questions.forEach((question, index) => {
-                    const userAnswer = testData.userAnswers[index];
-                    const correctAnswer = question.correctAnswer;
-                    
-                    if (userAnswer === correctAnswer) {
-                        correctAnswers++;
-                    }
-                });
-                
-                const score = testData.questions.length > 0 ? 
-                    Math.round((correctAnswers / testData.questions.length) * 100) : 0;
-                
-                showResults(score, correctAnswers, "Test completed (score calculation may be approximate)");
-            } else {
-                throw new Error("Invalid test data");
-            }
-        } catch (fallbackError) {
-            console.error('Fallback also failed:', fallbackError);
-            getResultBtn.classList.remove('btn-loading');
-            getResultBtn.innerHTML = '<i class="fas fa-check-circle"></i> Submit Test';
-            alert('Error submitting test. Please try again or contact support.');
-        }
-    }
-}
-
-// Show results modal
-function showResults(score, correctAnswers, message) {
-    getResultBtn.classList.remove('btn-loading');
-    getResultBtn.innerHTML = '<i class="fas fa-check-circle"></i> Submit Test';
-    
-    finalScore.textContent = score;
-    correctCount.textContent = correctAnswers;
-    totalQuestionsCount.textContent = testData.questions.length;
-    performanceMessage.textContent = message;
-    
-    resultsModal.style.display = 'flex';
-    addSolutionButton();
-    
-    // Save to sessionStorage for backup
-    try {
-        sessionStorage.removeItem('currentTest');
-        sessionStorage.setItem('previousTest', JSON.stringify({
-            ...testData,
-            finalScore: score,
-            correctAnswers: correctAnswers,
-            completedAt: new Date().toISOString()
-        }));
-    } catch (e) {
-        console.warn('Could not save to sessionStorage:', e);
-    }
-}
-
-// Add solution button to results modal
 function addSolutionButton() {
     console.log("Adding solution button...");
     
@@ -716,217 +585,6 @@ function addSolutionButton() {
     console.log('Solution button added successfully');
 }
 
-// Function to show solutions modal with image support
-function showSolutionsModal(questions, userAnswers) {
-    console.log('Showing solutions modal');
-    const modal = document.getElementById('solutionModal');
-    const modalBody = document.getElementById('solutionModalBody');
-    
-    if (!modal || !modalBody) {
-        console.error('Solution modal elements not found');
-        return;
-    }
-    
-    modalBody.innerHTML = '';
-    const solutionsContainer = document.createElement('div');
-    solutionsContainer.className = 'solutions-container';
-    
-    questions.forEach((question, index) => {
-        const solutionItem = document.createElement('div');
-        solutionItem.className = 'solution-item';
-        
-        const userAnswer = userAnswers[index];
-        const correctAnswer = question.correctAnswer;
-        const isCorrect = userAnswer === correctAnswer;
-        
-        // Check if we have solution text, image, or both
-        const hasSolutionText = question.solution && question.solution.trim() !== '';
-        const hasSolutionImage = question.solutionImage;
-        
-        // Build solution content
-        let solutionContent = '';
-        
-        if (hasSolutionText && hasSolutionImage) {
-            const processedText = processSolutionText(question.solution);
-            solutionContent = `
-                <div class="solution-text-preserved">${processedText}</div>
-                <div class="solution-image-container">
-                    <img src="${question.solutionImage}" 
-                         alt="Solution image" 
-                         class="solution-image">
-                    <div class="image-label">
-                        <i class="fas fa-image"></i> Solution Image
-                    </div>
-                </div>
-            `;
-        } else if (hasSolutionText) {
-            const processedText = processSolutionText(question.solution);
-            solutionContent = `<div class="solution-text-preserved">${processedText}</div>`;
-        } else if (hasSolutionImage) {
-            solutionContent = `
-                <div class="solution-image-container">
-                    <img src="${question.solutionImage}" 
-                         alt="Solution image" 
-                         class="solution-image">
-                    <div class="image-label">
-                        <i class="fas fa-image"></i> Solution Image
-                    </div>
-                </div>
-            `;
-        } else {
-            solutionContent = '<div class="solution-text-preserved">No detailed solution available for this question.</div>';
-        }
-        
-        // Also check question content for display
-        let questionContent = '';
-        const hasQuestionText = question.questionText && question.questionText.trim() !== '';
-        const hasQuestionImage = question.questionImage;
-        
-        if (hasQuestionText && hasQuestionImage) {
-            questionContent = `
-                <p><strong>Question:</strong> ${formatTextForDisplay(question.questionText)}</p>
-                <div class="question-image-container" style="margin: 10px 0;">
-                    <img src="${question.questionImage}" 
-                         alt="Question image" 
-                         style="max-width: 200px; max-height: 150px;">
-                    <div class="image-label">
-                        <i class="fas fa-image"></i> Question Image
-                    </div>
-                </div>
-            `;
-        } else if (hasQuestionText) {
-            questionContent = `<p><strong>Question:</strong> ${formatTextForDisplay(question.questionText)}</p>`;
-        } else if (hasQuestionImage) {
-            questionContent = `
-                <div class="question-image-container" style="margin: 10px 0;">
-                    <img src="${question.questionImage}" 
-                         alt="Question image" 
-                         style="max-width: 200px; max-height: 150px;">
-                    <div class="image-label">
-                        <i class="fas fa-image"></i> Question Image
-                    </div>
-                </div>
-            `;
-        }
-        
-        solutionItem.innerHTML = `
-            <h4><i class="fas fa-question-circle"></i> Question ${index + 1}</h4>
-            ${questionContent}
-            <div class="solution-options">
-                <p><strong>Your Answer:</strong> <span class="user-answer">${userAnswer || 'Not answered'}</span> 
-                <span class="${isCorrect ? 'option-correct' : 'option-incorrect'}">
-                    ${isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                </span></p>
-                <p><strong>Correct Answer:</strong> <span class="correct-answer">${correctAnswer || 'Not specified'}</span></p>
-            </div>
-            <div class="option-explanation">
-                <p><strong>Explanation:</strong></p>
-                ${solutionContent}
-            </div>
-        `;
-        
-        const separator = document.createElement('hr');
-        separator.style.margin = '20px 0';
-        separator.style.border = 'none';
-        separator.style.borderTop = '1px solid #eee';
-        solutionItem.appendChild(separator);
-        
-        solutionsContainer.appendChild(solutionItem);
-    });
-    
-    modalBody.appendChild(solutionsContainer);
-    
-    const backButtonContainer = document.createElement('div');
-    backButtonContainer.style.marginTop = '30px';
-    backButtonContainer.style.paddingTop = '20px';
-    backButtonContainer.style.borderTop = '2px solid #eee';
-    backButtonContainer.style.textAlign = 'center';
-    
-    const backButton = document.createElement('button');
-    backButton.className = 'modal-btn confirm';
-    backButton.id = 'backToDashboardFromSolution';
-    backButton.innerHTML = '<i class="fas fa-tachometer-alt"></i> Back to Dashboard';
-    backButton.style.marginTop = '10px';
-    backButton.style.padding = '12px 30px';
-    backButton.style.fontSize = '1rem';
-    backButton.style.backgroundColor = '#28a745';
-    backButton.style.color = 'white';
-    backButton.style.border = 'none';
-    backButton.style.borderRadius = '5px';
-    backButton.style.cursor = 'pointer';
-    backButton.style.transition = 'all 0.3s ease';
-    
-    backButton.addEventListener('mouseenter', () => {
-        backButton.style.backgroundColor = '#218838';
-        backButton.style.transform = 'translateY(-2px)';
-    });
-    
-    backButton.addEventListener('mouseleave', () => {
-        backButton.style.backgroundColor = '#28a745';
-        backButton.style.transform = 'translateY(0)';
-    });
-    
-    backButton.addEventListener('click', goToDashboard);
-    
-    backButtonContainer.appendChild(backButton);
-    modalBody.appendChild(backButtonContainer);
-    
-    modal.style.display = 'flex';
-    
-    const closeBtn = document.getElementById('closeSolutionModal');
-    if (closeBtn) {
-        closeBtn.onclick = () => {
-            modal.style.display = 'none';
-        };
-    }
-    
-    modal.onclick = (e) => {
-        if (e.target === modal) {
-            modal.style.display = 'none';
-        }
-    };
-    
-    const escapeHandler = function(e) {
-        if (e.key === 'Escape' && modal.style.display === 'flex') {
-            modal.style.display = 'none';
-            document.removeEventListener('keydown', escapeHandler);
-        }
-    };
-    document.addEventListener('keydown', escapeHandler);
-}
-
-// Process solution text for display
-function processSolutionText(text) {
-    if (!text) return '';
-    
-    let processedText = text;
-    
-    // Handle superscript (^) notation
-    processedText = processedText.replace(/\^(\d+)/g, '<sup>$1</sup>');
-    
-    // Handle subscript (_) notation
-    processedText = processedText.replace(/_(\d+)/g, '<sub>$1</sub>');
-    
-    // Handle chemical formulas with subscripts
-    processedText = processedText.replace(/([A-Z][a-z]?)(\d+)/g, function(match, element, number) {
-        return element + '<sub>' + number + '</sub>';
-    });
-    
-    // Handle common mathematical expressions
-    processedText = processedText.replace(/x\^2/g, 'x<sup>2</sup>');
-    processedText = processedText.replace(/x\^3/g, 'x<sup>3</sup>');
-    processedText = processedText.replace(/y\^2/g, 'y<sup>2</sup>');
-    
-    // Convert newlines to <br> tags
-    processedText = processedText.replace(/\n/g, '<br>');
-    
-    // Convert multiple spaces to non-breaking spaces
-    processedText = processedText.replace(/  /g, ' &nbsp;');
-    
-    return processedText;
-}
-
-// Format text for HTML display
 function formatTextForDisplay(text) {
     if (!text) return "";
     
@@ -937,18 +595,14 @@ function formatTextForDisplay(text) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
     
-    // Convert newlines to <br> for display
     const formatted = encodedText.replace(/\n/g, '<br>');
-    
     return formatted;
 }
 
-// Go back to dashboard
 function goToDashboard() {
     window.location.href = 'dashboard.html';
 }
 
-// Handle keyboard navigation
 function handleKeyboardNavigation(e) {
     if (submitModal.style.display === 'flex' || resultsModal.style.display === 'flex') {
         if (e.key === 'Escape') {
@@ -1000,27 +654,4 @@ function handleKeyboardNavigation(e) {
             showSubmitModal();
             break;
     }
-}
-
-// Helper function to show error toast
-function showErrorToast(message) {
-    const toast = document.createElement('div');
-    toast.style.position = 'fixed';
-    toast.style.top = '20px';
-    toast.style.right = '20px';
-    toast.style.backgroundColor = '#dc3545';
-    toast.style.color = 'white';
-    toast.style.padding = '15px';
-    toast.style.borderRadius = '5px';
-    toast.style.zIndex = '9999';
-    toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-    toast.textContent = message;
-    
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.5s';
-        setTimeout(() => document.body.removeChild(toast), 500);
-    }, 3000);
 }
