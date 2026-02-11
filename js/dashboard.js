@@ -12,7 +12,7 @@ import {
     updateDoc,
     increment,
     serverTimestamp,
-    onSnapshot // For real-time updates
+    onSnapshot // ADDED: For real-time updates
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
 import { 
@@ -80,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // User data
     let currentUserData = null;
     let unsubscribeStats = null; // For real-time listener cleanup
-    let unsubscribeUserData = null; // For user data real-time updates
 
     // Initialize dashboard functionality
     function initDashboard() {
@@ -114,12 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (logoutBtn) {
             logoutBtn.addEventListener('click', async () => {
                 try {
-                    // Clean up real-time listeners
+                    // Clean up real-time listener
                     if (unsubscribeStats) {
                         unsubscribeStats();
-                    }
-                    if (unsubscribeUserData) {
-                        unsubscribeUserData();
                     }
                     await signOut(auth);
                     window.location.href = 'index.html';
@@ -154,36 +150,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // FIXED: PLAN MANAGEMENT FUNCTIONS
+    // PLAN MANAGEMENT FUNCTIONS
     // =============================================
 
-    // FIXED: Check and handle premium plan expiration
+    // Check and handle premium plan expiration
     async function checkPlanExpiration(userId, userData) {
         try {
             const isFreePlan = userData.plan === 'free';
             if (isFreePlan) return false; // Only check for paid users
             
-            let subscriptionDate = userData.subscriptionDate;
-            
-            // FIX: Proper Firestore Timestamp conversion
-            if (subscriptionDate && subscriptionDate.toDate) {
-                subscriptionDate = subscriptionDate.toDate();
-            } else if (subscriptionDate && subscriptionDate.seconds) {
-                subscriptionDate = new Date(subscriptionDate.seconds * 1000);
-            }
+            // ====== FIXED SECTION ======
+            // Check if user is 'paid' but missing subscriptionDate (for manual upgrades)
+            let subscriptionDate = userData.subscriptionDate?.toDate();
             
             if (!subscriptionDate) {
                 console.log("Premium user found without subscription date. Setting start date to NOW.");
                 
-                const now = new Date();
+                // FIX: Set subscription date to CURRENT DATE, not in the past!
+                subscriptionDate = new Date(); // TODAY
+                
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
-                    subscriptionDate: serverTimestamp()
+                    subscriptionDate: subscriptionDate // Store as server timestamp
                 });
                 
-                console.log(`Subscription date set to: ${now.toLocaleDateString()}`);
+                // Also update local data
+                if (currentUserData) {
+                    currentUserData.subscriptionDate = subscriptionDate;
+                }
+                
+                console.log(`Subscription date set to: ${subscriptionDate.toLocaleDateString()}`);
                 return false; // Plan just started, not expired
             }
+            // ====== END FIX ======
             
             const now = new Date();
             const daysSinceSubscription = Math.floor((now - subscriptionDate) / (1000 * 60 * 60 * 24));
@@ -197,10 +196,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
                     plan: 'free',
-                    planExpiredAt: serverTimestamp(),
+                    planExpiredAt: now,
                     previousPlan: 'paid',
                     subscriptionDate: null // Clear subscription date
                 });
+                
+                // Update local data
+                if (currentUserData) {
+                    currentUserData.plan = 'free';
+                    currentUserData.subscriptionDate = null;
+                    currentUserData.planExpiredAt = now;
+                    currentUserData.previousPlan = 'paid';
+                }
                 
                 // Show expiration notice
                 showExpirationNotice();
@@ -218,18 +225,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Show expiration notice when premium plan expires
+    function showExpirationNotice() {
+        if (document.getElementById('expirationNotice')) return;
+        
+        const notice = document.createElement('div');
+        notice.id = 'expirationNotice';
+        notice.style.cssText = `
+            background: linear-gradient(135deg, #ff6b6b, #ff8e53);
+            color: white;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            animation: slideDown 0.5s ease-out;
+        `;
+        
+        notice.innerHTML = `
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">
+                <i class="fas fa-clock"></i> Premium Plan Expired
+            </h3>
+            <p style="margin: 0; font-size: 0.9rem;">
+                Your 30-day Premium subscription has ended. You've been reverted to the Free Plan.
+                <br>
+                <strong>Upgrade again to continue enjoying unlimited tests!</strong>
+            </p>
+        `;
+        
+        // Insert after premium banner or at top of dashboard
+        const dashboardContainer = document.querySelector('.dashboard-container');
+        if (dashboardContainer) {
+            const premiumBanner = document.getElementById('premiumBanner');
+            if (premiumBanner && premiumBanner.style.display !== 'none') {
+                dashboardContainer.insertBefore(notice, premiumBanner.nextSibling);
+            } else {
+                dashboardContainer.insertBefore(notice, dashboardContainer.firstChild);
+            }
+        }
+        
+        // Auto-remove after 10 seconds
+        setTimeout(() => {
+            if (notice.parentNode) {
+                notice.style.opacity = '0';
+                notice.style.transition = 'opacity 0.5s ease';
+                setTimeout(() => {
+                    if (notice.parentNode) {
+                        notice.parentNode.removeChild(notice);
+                    }
+                }, 500);
+            }
+        }, 10000);
+    }
+
     // FIXED: Check and reset weekly test count for free users
     async function checkAndResetTestCount(userId, userData) {
         try {
-            let lastReset = userData.lastTestResetDate;
-            
-            // FIX: Proper Firestore Timestamp conversion
-            if (lastReset && lastReset.toDate) {
-                lastReset = lastReset.toDate();
-            } else if (lastReset && lastReset.seconds) {
-                lastReset = new Date(lastReset.seconds * 1000);
-            }
-            
+            const lastReset = userData.lastTestResetDate?.toDate();
             const now = new Date();
             
             console.log("Checking weekly reset:", {
@@ -244,8 +295,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
                     testsTakenThisWeek: 0,
-                    lastTestResetDate: serverTimestamp()
+                    lastTestResetDate: now
                 });
+                
+                if (currentUserData) {
+                    currentUserData.testsTakenThisWeek = 0;
+                    currentUserData.lastTestResetDate = now;
+                }
                 
                 console.log("Weekly test count initialized to 0");
                 return;
@@ -262,10 +318,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
                     testsTakenThisWeek: 0,
-                    lastTestResetDate: serverTimestamp()
+                    lastTestResetDate: now
                 });
                 
                 console.log("Weekly test count reset to 0");
+                
+                // Update local data
+                if (currentUserData) {
+                    currentUserData.testsTakenThisWeek = 0;
+                    currentUserData.lastTestResetDate = now;
+                }
                 
                 // Show reset notification for free users
                 if (userData.plan === 'free') {
@@ -280,156 +342,196 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Show weekly reset notification
+    function showWeeklyResetNotification() {
+        if (document.getElementById('weeklyResetNotice')) return;
+        
+        const notice = document.createElement('div');
+        notice.id = 'weeklyResetNotice';
+        notice.style.cssText = `
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            color: white;
+            padding: 0.8rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            text-align: center;
+            font-size: 0.9rem;
+            animation: slideDown 0.5s ease-out;
+        `;
+        
+        notice.innerHTML = `
+            <i class="fas fa-sync-alt"></i> 
+            <strong>Weekly Reset Complete!</strong> 
+            Your test limit has been refreshed. You now have ${FREE_PLAN_WEEKLY_LIMIT} tests available this week.
+        `;
+        
+        // Insert at top of dashboard
+        const dashboardContainer = document.querySelector('.dashboard-container');
+        if (dashboardContainer) {
+            const firstChild = dashboardContainer.firstChild;
+            if (firstChild) {
+                dashboardContainer.insertBefore(notice, firstChild);
+            } else {
+                dashboardContainer.appendChild(notice);
+            }
+        }
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (notice.parentNode) {
+                notice.style.opacity = '0';
+                notice.style.transition = 'opacity 0.5s ease';
+                setTimeout(() => {
+                    if (notice.parentNode) {
+                        notice.parentNode.removeChild(notice);
+                    }
+                }, 500);
+            }
+        }, 5000);
+    }
+
+    // Upgrade user to premium
+    async function upgradeToPremium() {
+        try {
+            const user = auth.currentUser;
+            if (!user) {
+                alert('You must be logged in to upgrade.');
+                return;
+            }
+            
+            // Show loading
+            if (upgradeBtn) {
+                const originalText = upgradeBtn.innerHTML;
+                upgradeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                upgradeBtn.disabled = true;
+            }
+            
+            // In a real app, this would be a payment processing callback
+            // For now, we'll simulate successful payment
+            const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, {
+                plan: 'paid',
+                subscriptionDate: new Date(),
+                planExpiredAt: null,
+                previousPlan: 'free',
+                lastUpgraded: new Date()
+            });
+            
+            // Update local data
+            if (currentUserData) {
+                currentUserData.plan = 'paid';
+                currentUserData.subscriptionDate = new Date();
+                currentUserData.previousPlan = 'free';
+                
+                // Update UI immediately
+                updateUIForPlan();
+                showPremiumBanner();
+                setupSubjectDropdown();
+            }
+            
+            // Show success message
+            alert(`🎉 Congratulations! You are now a Premium member!\n\n✅ Unlimited tests for all subjects\n✅ Detailed solutions unlocked\n✅ Premium status for 30 days\n\nYour subscription will automatically renew.`);
+            
+            // Reset upgrade button
+            if (upgradeBtn) {
+                upgradeBtn.innerHTML = '<i class="fas fa-rocket"></i> UPGRADE NOW';
+                upgradeBtn.disabled = false;
+            }
+            
+        } catch (error) {
+            console.error("Error upgrading to premium:", error);
+            alert('Error upgrading to premium. Please try again.');
+            
+            // Reset upgrade button on error
+            if (upgradeBtn) {
+                upgradeBtn.innerHTML = '<i class="fas fa-rocket"></i> UPGRADE NOW';
+                upgradeBtn.disabled = false;
+            }
+        }
+    }
+
     // =============================================
-    // FIXED: LOAD USER DATA WITH REAL-TIME UPDATES
+    // LOAD USER DATA WITH PLAN CHECK
     // =============================================
     async function loadUserData(userId) {
         try {
             const userRef = doc(db, "users", userId);
+            const userSnap = await getDoc(userRef);
             
-            // FIX: Set up real-time listener for user data FIRST
-            unsubscribeUserData = onSnapshot(userRef, async (userSnap) => {
-                if (userSnap.exists()) {
-                    currentUserData = userSnap.data();
-                    console.log("User data updated from Firestore:", currentUserData);
-                    
-                    // Check plan expiration and weekly reset
-                    await checkPlanExpiration(userId, currentUserData);
-                    await checkAndResetTestCount(userId, currentUserData);
-                    
-                    // Load user profile
-                    loadUserProfile(currentUserData);
-                    
-                    // Set up REAL-TIME stats listener (if not already set up)
-                    if (!unsubscribeStats) {
-                        setupRealTimeStats(userId);
-                    }
-                    
-                    // Update UI based on plan
-                    updateUIForPlan();
-                    
-                    // Show/hide premium banner
-                    showPremiumBanner();
-                    
-                    // Setup subject dropdown based on plan
-                    setupSubjectDropdown();
-                    
-                } else {
-                    console.error("User document does not exist!");
-                    // Create default user document
-                    await createDefaultUserProfile(userId);
-                }
-            }, (error) => {
-                console.error('Error in user data listener:', error);
-            });
-            
+            if (userSnap.exists()) {
+                currentUserData = userSnap.data();
+                console.log("User data loaded:", currentUserData);
+                
+                // ========== CHECK PREMIUM PLAN EXPIRATION ==========
+                const planExpired = await checkPlanExpiration(userId, currentUserData);
+                
+                // ========== CHECK WEEKLY TEST COUNT RESET ==========
+                // IMPORTANT: Check and reset BEFORE using the test count
+                await checkAndResetTestCount(userId, currentUserData);
+                
+                // Load user profile
+                loadUserProfile(currentUserData);
+                
+                // Set up REAL-TIME stats listener
+                setupRealTimeStats(userId);
+                
+                // Update UI based on plan (AFTER reset check)
+                updateUIForPlan();
+                
+                // Show/hide premium banner (ALWAYS show for free users)
+                showPremiumBanner();
+                
+                // Setup subject dropdown based on plan
+                setupSubjectDropdown();
+                
+            } else {
+                console.error("User document does not exist!");
+                // Create default user document
+                await createDefaultUserProfile(userId);
+                loadUserData(userId); // Reload
+            }
         } catch (error) {
             console.error('Error loading user data:', error);
         }
     }
 
-    // FIXED: Setup real-time stats with proper error handling
-    function setupRealTimeStats(userId) {
-        // Clean up previous listener if exists
-        if (unsubscribeStats) {
-            unsubscribeStats();
+    // Create default user profile
+    async function createDefaultUserProfile(userId) {
+        try {
+            const userRef = doc(db, "users", userId);
+            const user = auth.currentUser;
+            
+            await updateDoc(userRef, {
+                fullName: user.displayName || user.email.split('@')[0],
+                email: user.email,
+                plan: 'free',
+                testsTakenThisWeek: 0,
+                lastTestResetDate: new Date(), // Initialize reset date
+                totalTestsTaken: 0,
+                profilePicture: '',
+                joinedAt: new Date(),
+                status: 'active',
+                subscriptionDate: null,
+                planExpiredAt: null,
+                previousPlan: null,
+                lastUpgraded: null
+            }, { merge: true });
+            
+            console.log("Default user profile created with weekly reset initialized");
+        } catch (error) {
+            console.error("Error creating default profile:", error);
         }
-        
-        // Set up real-time listener for test results
-        const q = query(
-            collection(db, "test_results"),
-            where("userId", "==", userId),
-            orderBy("completedAt", "desc")
-        );
-        
-        unsubscribeStats = onSnapshot(q, (snapshot) => {
-            console.log("Real-time test results update received. Docs count:", snapshot.size);
-            
-            // Update statistics
-            updateStatistics(snapshot);
-            
-            // Update recent tests list
-            updateRecentTests(snapshot);
-            
-        }, (error) => {
-            console.error("Error in real-time stats listener:", error);
-            // Try to set up again after delay
-            setTimeout(() => setupRealTimeStats(userId), 5000);
-        });
     }
 
-    // FIXED: Update statistics from snapshot with proper data handling
-    function updateStatistics(snapshot) {
-        if (snapshot.empty) {
-            if (completedTests) completedTests.textContent = "0";
-            if (averageScore) averageScore.textContent = "0";
-            if (performanceMessage) performanceMessage.textContent = "start practicing!";
-            return;
-        }
-        
-        let totalTests = 0;
-        let totalScore = 0;
-        let validTests = [];
-        
-        snapshot.forEach((doc) => {
-            const testData = doc.data();
-            if (testData.score !== undefined && testData.score !== null && testData.totalQuestions) {
-                totalTests++;
-                totalScore += testData.score;
-                validTests.push(testData);
-            }
-        });
-        
-        // Update stats with animation
-        if (completedTests) {
-            completedTests.textContent = totalTests;
-            completedTests.style.transform = "scale(1.1)";
-            setTimeout(() => {
-                completedTests.style.transform = "scale(1)";
-            }, 300);
-        }
-        
-        const average = totalTests > 0 ? Math.round(totalScore / totalTests) : 0;
-        if (averageScore) {
-            averageScore.textContent = average;
-            averageScore.style.transform = "scale(1.1)";
-            setTimeout(() => {
-                averageScore.style.transform = "scale(1)";
-            }, 300);
-        }
-        
-        // Update performance message
-        let message = "practice more!";
-        if (average >= 90) message = "excellent!";
-        else if (average >= 80) message = "great job!";
-        else if (average >= 70) message = "good work!";
-        else if (average >= 60) message = "keep improving!";
-        
-        if (performanceMessage) {
-            performanceMessage.textContent = message;
-        }
-        
-        console.log("Statistics updated in real-time:", { 
-            totalTests, 
-            average,
-            validTestsCount: validTests.length 
-        });
-    }
-
-    // =============================================
-    // FIXED: Update UI based on user plan with real-time data
-    // =============================================
+    // Update UI based on user plan
     function updateUIForPlan() {
-        if (!currentUserData) {
-            console.log("No user data available for UI update");
-            return;
-        }
+        if (!currentUserData) return;
         
         const isFreePlan = currentUserData.plan === 'free';
         const testsTakenThisWeek = currentUserData.testsTakenThisWeek || 0;
         const remainingTests = Math.max(0, FREE_PLAN_WEEKLY_LIMIT - testsTakenThisWeek);
         
-        console.log("Updating UI with real-time data:", {
+        console.log("Updating UI with:", {
             isFreePlan: isFreePlan,
             testsTakenThisWeek: testsTakenThisWeek,
             remainingTests: remainingTests,
@@ -439,19 +541,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Calculate days remaining for premium users
         let daysRemaining = 0;
         if (!isFreePlan && currentUserData.subscriptionDate) {
-            let subscriptionDate = currentUserData.subscriptionDate;
-            
-            if (subscriptionDate && subscriptionDate.toDate) {
-                subscriptionDate = subscriptionDate.toDate();
-            } else if (subscriptionDate && subscriptionDate.seconds) {
-                subscriptionDate = new Date(subscriptionDate.seconds * 1000);
-            }
-            
-            if (subscriptionDate && subscriptionDate instanceof Date) {
-                const now = new Date();
-                const daysSinceSubscription = Math.floor((now - subscriptionDate) / (1000 * 60 * 60 * 24));
-                daysRemaining = Math.max(0, PREMIUM_PLAN_DURATION_DAYS - daysSinceSubscription);
-            }
+            const subscriptionDate = currentUserData.subscriptionDate.toDate();
+            const now = new Date();
+            const daysSinceSubscription = Math.floor((now - subscriptionDate) / (1000 * 60 * 60 * 24));
+            daysRemaining = Math.max(0, PREMIUM_PLAN_DURATION_DAYS - daysSinceSubscription);
         }
         
         // Update plan status display
@@ -474,7 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 planIcon.className = 'fas fa-user';
                 planIcon.style.color = '#95a5a6';
             } else {
-                planStatusCard.style.borderLeftColor = '#9C27B0';
+                planStatusCard.style.borderLeftColor = '#9C27B0'; // Eggplant color
                 planIcon.className = 'fas fa-crown';
                 planIcon.style.color = '#FFD700';
             }
@@ -505,100 +598,223 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // FIXED: TEST LIMIT VALIDATION WITH REAL-TIME CHECK
+    // REAL-TIME STATS LISTENER
     // =============================================
-    async function validateTestStart() {
-        if (!currentUserData) {
-            return { valid: false, message: "User data not loaded. Please refresh the page." };
+    function setupRealTimeStats(userId) {
+        // Clean up previous listener if exists
+        if (unsubscribeStats) {
+            unsubscribeStats();
         }
+        
+        // Set up real-time listener for test results
+        const q = query(
+            collection(db, "test_results"),
+            where("userId", "==", userId),
+            orderBy("completedAt", "desc")
+        );
+        
+        unsubscribeStats = onSnapshot(q, (snapshot) => {
+            console.log("Real-time update received for user:", userId);
+            
+            // Update statistics
+            updateStatistics(snapshot);
+            
+            // Update recent tests list
+            updateRecentTests(snapshot);
+        }, (error) => {
+            console.error("Error in real-time listener:", error);
+        });
+    }
+
+    // Update statistics from snapshot
+    function updateStatistics(snapshot) {
+        if (snapshot.empty) {
+            if (completedTests) completedTests.textContent = "0";
+            if (averageScore) averageScore.textContent = "0";
+            if (performanceMessage) performanceMessage.textContent = "start practicing!";
+            return;
+        }
+        
+        let totalTests = 0;
+        let totalScore = 0;
+        
+        snapshot.forEach((doc) => {
+            const testData = doc.data();
+            if (testData.score) {
+                totalTests++;
+                totalScore += testData.score;
+            }
+        });
+        
+        // Update stats with animation
+        if (completedTests) {
+            completedTests.textContent = totalTests;
+            // Add animation
+            completedTests.style.transform = "scale(1.1)";
+            setTimeout(() => {
+                completedTests.style.transform = "scale(1)";
+            }, 300);
+        }
+        
+        const average = totalTests > 0 ? Math.round(totalScore / totalTests) : 0;
+        if (averageScore) {
+            averageScore.textContent = average;
+            // Add animation
+            averageScore.style.transform = "scale(1.1)";
+            setTimeout(() => {
+                averageScore.style.transform = "scale(1)";
+            }, 300);
+        }
+        
+        // Update performance message
+        let message = "practice more!";
+        if (average >= 90) message = "excellent!";
+        else if (average >= 80) message = "great job!";
+        else if (average >= 70) message = "good work!";
+        else if (average >= 60) message = "keep improving!";
+        
+        if (performanceMessage) {
+            performanceMessage.textContent = message;
+        }
+        
+        console.log("Statistics updated:", { totalTests, average });
+    }
+
+    // Update recent tests from snapshot
+    function updateRecentTests(snapshot) {
+        if (snapshot.empty) {
+            if (testsList) {
+                testsList.innerHTML = `
+                    <div class="test-item placeholder">
+                        <div class="test-info">
+                            <div class="test-icon">
+                                <i class="fas fa-hourglass-half"></i>
+                            </div>
+                            <div class="test-details">
+                                <h4>No tests yet</h4>
+                                <p>Take your first practice test!</p>
+                            </div>
+                        </div>
+                        <div class="test-score">0<span class="test-percentage">%</span></div>
+                    </div>
+                `;
+            }
+            return;
+        }
+        
+        if (testsList) {
+            testsList.innerHTML = '';
+            
+            // Take only the most recent tests based on limit
+            let count = 0;
+            snapshot.forEach((doc) => {
+                if (count < RECENT_TESTS_LIMIT) {
+                    const testData = doc.data();
+                    const testItem = createTestItem(testData);
+                    testsList.appendChild(testItem);
+                    count++;
+                }
+            });
+        }
+    }
+
+    // Setup subject dropdown based on plan
+    function setupSubjectDropdown() {
+        if (!subjectSelect) return;
+        
+        // Clear existing options
+        subjectSelect.innerHTML = '<option value="" disabled selected>Choose subject</option>';
+        
+        const isFreePlan = currentUserData?.plan === 'free';
+        const subjectsToShow = isFreePlan ? FREE_PLAN_SUBJECTS : ALL_SUBJECTS.map(s => s.value);
+        
+        ALL_SUBJECTS.forEach(subject => {
+            if (subjectsToShow.includes(subject.value)) {
+                const option = document.createElement('option');
+                option.value = subject.value;
+                option.textContent = subject.name;
+                subjectSelect.appendChild(option);
+            }
+        });
+        
+        // Show/hide plan restrictions notice
+        if (planRestrictions) {
+            planRestrictions.style.display = isFreePlan ? 'block' : 'none';
+        }
+    }
+
+    // Show premium banner for free users (ALWAYS SHOW)
+    function showPremiumBanner() {
+        if (!premiumBanner || !currentUserData) return;
         
         const isFreePlan = currentUserData.plan === 'free';
         
         if (isFreePlan) {
-            // Get fresh data from Firestore to ensure we have latest count
-            try {
-                const user = auth.currentUser;
-                if (user) {
-                    const userRef = doc(db, "users", user.uid);
-                    const userDoc = await getDoc(userRef);
-                    if (userDoc.exists()) {
-                        const freshUserData = userDoc.data();
-                        const testsTakenThisWeek = freshUserData.testsTakenThisWeek || 0;
-                        
-                        console.log("Fresh validation check:", { 
-                            testsTakenThisWeek, 
-                            FREE_PLAN_WEEKLY_LIMIT,
-                            remaining: FREE_PLAN_WEEKLY_LIMIT - testsTakenThisWeek 
-                        });
-                        
-                        if (testsTakenThisWeek >= FREE_PLAN_WEEKLY_LIMIT) {
-                            return {
-                                valid: false,
-                                message: `You have reached your weekly limit of ${FREE_PLAN_WEEKLY_LIMIT} tests on the Free Plan.\n\nUpgrade to Premium for unlimited tests!`
-                            };
-                        }
-                        
-                        // Check subject restriction
-                        const selectedSubject = subjectSelect.value;
-                        if (!FREE_PLAN_SUBJECTS.includes(selectedSubject)) {
-                            return {
-                                valid: false,
-                                message: `Free Plan users can only take tests in Mathematics and English.\n\nUpgrade to Premium to access all subjects!`
-                            };
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error("Error in validation check:", error);
-                // Fallback to local data if Firestore fails
-                const testsTakenThisWeek = currentUserData.testsTakenThisWeek || 0;
-                if (testsTakenThisWeek >= FREE_PLAN_WEEKLY_LIMIT) {
-                    return {
-                        valid: false,
-                        message: `Weekly limit reached. Please try again or refresh the page.`
-                    };
-                }
+            premiumBanner.style.display = 'flex';
+        } else {
+            premiumBanner.style.display = 'none';
+        }
+    }
+
+    // =============================================
+    // TEST LIMIT VALIDATION
+    // =============================================
+    async function validateTestStart() {
+        if (!currentUserData) return { valid: false, message: "User data not loaded" };
+        
+        const isFreePlan = currentUserData.plan === 'free';
+        
+        if (isFreePlan) {
+            // Check weekly limit
+            const testsTakenThisWeek = currentUserData.testsTakenThisWeek || 0;
+            console.log("Validating test start:", { testsTakenThisWeek, FREE_PLAN_WEEKLY_LIMIT });
+            
+            if (testsTakenThisWeek >= FREE_PLAN_WEEKLY_LIMIT) {
+                return {
+                    valid: false,
+                    message: `You have reached your weekly limit of ${FREE_PLAN_WEEKLY_LIMIT} tests on the Free Plan.\n\nUpgrade to Premium for unlimited tests!`
+                };
+            }
+            
+            // Check subject restriction
+            const selectedSubject = subjectSelect.value;
+            if (!FREE_PLAN_SUBJECTS.includes(selectedSubject)) {
+                return {
+                    valid: false,
+                    message: `Free Plan users can only take tests in Mathematics and English.\n\nUpgrade to Premium to access all subjects!`
+                };
             }
         }
         
         return { valid: true, message: "" };
     }
 
-    // FIXED: Increment test count with transaction-like approach
     async function incrementTestCount() {
         try {
             const user = auth.currentUser;
-            if (!user) {
-                console.error("No user logged in");
-                return;
-            }
+            if (!user) return;
             
             const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, {
+                testsTakenThisWeek: increment(1),
+                totalTestsTaken: increment(1),
+                lastActivity: new Date()
+            });
             
-            // Get fresh user data
-            const userDoc = await getDoc(userRef);
-            if (userDoc.exists()) {
-                const userData = userDoc.data();
-                const currentCount = userData.testsTakenThisWeek || 0;
-                
-                console.log("Incrementing test count from:", currentCount, "to:", currentCount + 1);
-                
-                await updateDoc(userRef, {
-                    testsTakenThisWeek: increment(1),
-                    totalTestsTaken: increment(1),
-                    lastActivity: serverTimestamp()
-                });
-                
-                console.log("Test count incremented in Firestore");
+            // Update local data
+            if (currentUserData) {
+                currentUserData.testsTakenThisWeek = (currentUserData.testsTakenThisWeek || 0) + 1;
+                currentUserData.totalTestsTaken = (currentUserData.totalTestsTaken || 0) + 1;
+                updateUIForPlan();
+                console.log("Test count incremented:", currentUserData.testsTakenThisWeek);
             }
         } catch (error) {
             console.error("Error incrementing test count:", error);
-            throw error; // Re-throw to handle in calling function
         }
     }
 
     // =============================================
-    // START PRACTICE TEST - FIXED WITH PROPER COUNT INCREMENT
+    // START PRACTICE TEST WITH PROPER RANDOM SELECTION
     // =============================================
     async function startPracticeTest() {
         const selectedExam = classSelect.value;
@@ -617,7 +833,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // Check plan restrictions with fresh data
+        // Check plan restrictions
         const validation = await validateTestStart();
         if (!validation.valid) {
             alert(`❌ ${validation.message}`);
@@ -629,7 +845,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const firestoreExamType = EXAM_TYPE_MAP[selectedExam] || selectedExam;
             
-            // Fetch questions from Firestore
+            // Fetch ALL questions from Firestore
             const allQuestions = await fetchQuestions(firestoreExamType, selectedSubject);
             
             if (allQuestions.length === 0) {
@@ -638,14 +854,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
+            // Check if we have enough questions
             if (allQuestions.length < QUESTIONS_TO_FETCH) {
                 showLoadingState(false);
                 alert(`Only ${allQuestions.length} questions available for "${selectedSubject}".\n\nPlease try another subject or contact admin to add more questions.`);
                 return;
             }
             
-            // Shuffle and select questions
-            const shuffledQuestions = shuffleArray([...allQuestions]);
+            // PROPER RANDOM SELECTION: Shuffle all questions and take the first N
+            const shuffledQuestions = shuffleArray([...allQuestions]); // Create a copy and shuffle
             const selectedQuestions = shuffledQuestions.slice(0, QUESTIONS_TO_FETCH);
             
             // Calculate total time
@@ -653,13 +870,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return total + (parseInt(q.timeLimit) || 120);
             }, 0);
             
-            // FIXED: Increment test count BEFORE creating test data
-            if (currentUserData.plan === 'free') {
-                console.log("Incrementing test count for free user before test starts");
-                await incrementTestCount();
-            }
-            
-            // Create test data
+            // Store user plan info for test page
             const testData = {
                 testId: generateTestId(),
                 examType: firestoreExamType,
@@ -671,11 +882,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 startTime: new Date().toISOString(),
                 userId: auth.currentUser.uid,
                 userAnswers: Array(selectedQuestions.length).fill(null),
-                userPlan: currentUserData.plan,
-                plan: currentUserData.plan || 'free'
+                userPlan: currentUserData.plan, // Include plan info
+                plan: currentUserData.plan || 'free' // Also store plan separately for test page
             };
             
-            // Store in sessionStorage for test page
+            // Increment test count for free users BEFORE starting test
+            if (currentUserData.plan === 'free') {
+                await incrementTestCount();
+            }
+            
             sessionStorage.setItem('currentTest', JSON.stringify(testData));
             sessionStorage.removeItem('previousTest');
             
@@ -696,9 +911,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // REST OF THE FUNCTIONS (UNCHANGED BUT OPTIMIZED)
+    // FIXED: fetchQuestions function - accepts questions with images only
     // =============================================
-
     async function fetchQuestions(examType, subject) {
         try {
             const q = query(
@@ -713,6 +927,7 @@ document.addEventListener('DOMContentLoaded', () => {
             querySnapshot.forEach((doc) => {
                 const questionData = doc.data();
                 
+                // FIX: Accept questions that have either text OR image AND a correct answer
                 const hasContent = (
                     (questionData.questionText && questionData.questionText.trim() !== '') ||
                     questionData.questionImage
@@ -732,10 +947,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             D: questionData.optionD || ""
                         }
                     });
+                } else {
+                    console.log(`Skipping question ${doc.id}: missing content or correct answer`, {
+                        hasText: !!(questionData.questionText && questionData.questionText.trim() !== ''),
+                        hasImage: !!questionData.questionImage,
+                        hasCorrectAnswer: hasCorrectAnswer
+                    });
                 }
             });
             
             console.log(`Fetched ${questions.length} valid questions for ${subject} (${examType})`);
+            
             return questions;
             
         } catch (error) {
@@ -744,36 +966,240 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showPremiumBanner() {
-        if (!premiumBanner || !currentUserData) return;
+    // =============================================
+    // PROFILE PICTURE HANDLING & UTILITY FUNCTIONS
+    // =============================================
+    async function handleProfileUpload(event) {
+        const file = event.target.files[0];
         
-        const isFreePlan = currentUserData.plan === 'free';
-        premiumBanner.style.display = isFreePlan ? 'flex' : 'none';
-    }
-
-    function setupSubjectDropdown() {
-        if (!subjectSelect) return;
+        if (!file) return;
         
-        subjectSelect.innerHTML = '<option value="" disabled selected>Choose subject</option>';
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file (JPEG, PNG, GIF, etc.)');
+            return;
+        }
         
-        const isFreePlan = currentUserData?.plan === 'free';
-        const subjectsToShow = isFreePlan ? FREE_PLAN_SUBJECTS : ALL_SUBJECTS.map(s => s.value);
+        const maxSizeMB = 10;
+        if (file.size > maxSizeMB * 1024 * 1024) {
+            alert(`Image size should be less than ${maxSizeMB}MB`);
+            return;
+        }
         
-        ALL_SUBJECTS.forEach(subject => {
-            if (subjectsToShow.includes(subject.value)) {
-                const option = document.createElement('option');
-                option.value = subject.value;
-                option.textContent = subject.name;
-                subjectSelect.appendChild(option);
+        const user = auth.currentUser;
+        if (!user) {
+            alert('You must be logged in to upload a profile picture');
+            return;
+        }
+        
+        try {
+            const originalHTML = profileImg.innerHTML;
+            profileImg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+            
+            let compressedBase64;
+            
+            if (file.size > 800 * 1024) {
+                compressedBase64 = await compressImage(file, 800, 800, 0.7);
+            } else {
+                compressedBase64 = await convertImageToBase64(file);
             }
-        });
-        
-        if (planRestrictions) {
-            planRestrictions.style.display = isFreePlan ? 'block' : 'none';
+            
+            const maxBase64Size = 900000;
+            if (compressedBase64.length > maxBase64Size) {
+                compressedBase64 = await compressImage(file, 600, 600, 0.4);
+                
+                if (compressedBase64.length > maxBase64Size) {
+                    alert('Image is too large even after compression. Please choose a smaller image.');
+                    return;
+                }
+            }
+            
+            const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, {
+                profilePicture: compressedBase64,
+                profileUpdatedAt: new Date().toISOString()
+            });
+            
+            profileImg.src = compressedBase64;
+            profileImg.alt = "Profile Picture";
+            
+            alert('✅ Profile picture updated successfully!');
+            
+        } catch (error) {
+            console.error('Error uploading profile picture:', error);
+            setDefaultProfileImage();
+            alert('❌ Failed to upload profile picture. Please try again.');
+        } finally {
+            event.target.value = '';
         }
     }
 
-    // Utility functions remain the same
+    function convertImageToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.7) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width = Math.round((width * maxHeight) / height);
+                            height = maxHeight;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+                    resolve(compressedBase64);
+                };
+                img.onerror = reject;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async function loadUserProfile(userData) {
+        try {
+            if (userName) {
+                const displayName = userData.fullName || userData.email || 'Student';
+                userName.textContent = displayName;
+            }
+            
+            const profilePictureData = userData.profilePicture;
+            
+            if (profilePictureData) {
+                if (profilePictureData.startsWith('data:image')) {
+                    if (profileImg) {
+                        profileImg.src = profilePictureData;
+                        profileImg.alt = "Profile Picture";
+                    }
+                } else if (profilePictureData.startsWith('http')) {
+                    const img = new Image();
+                    img.onload = () => {
+                        if (profileImg) {
+                            profileImg.src = profilePictureData;
+                            profileImg.alt = "Profile Picture";
+                        }
+                    };
+                    img.onerror = () => {
+                        setDefaultProfileImage();
+                    };
+                    img.src = profilePictureData;
+                } else {
+                    setDefaultProfileImage();
+                }
+            } else {
+                setDefaultProfileImage();
+            }
+        } catch (error) {
+            console.error('Error loading user profile:', error);
+            setDefaultProfileImage();
+        }
+    }
+
+    function setDefaultProfileImage() {
+        if (!profileImg) return;
+        
+        const user = auth.currentUser;
+        let userNameText = 'User';
+        
+        if (user && user.displayName) {
+            userNameText = user.displayName.split(' ')[0];
+        } else if (user && user.email) {
+            userNameText = user.email.split('@')[0];
+        }
+        
+        profileImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userNameText)}&background=4285F4&color=fff&size=120`;
+        profileImg.alt = "Default Profile";
+    }
+
+    function createTestItem(testData) {
+        const testItem = document.createElement('div');
+        testItem.className = 'test-item';
+        
+        let timeAgo = 'Recently';
+        if (testData.completedAt) {
+            const completedDate = testData.completedAt.toDate();
+            timeAgo = formatTimeAgo(completedDate);
+        }
+        
+        const subjectIcon = getSubjectIcon(testData.subject);
+        const subjectName = testData.subject ? 
+            testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 
+            'Test';
+        
+        testItem.innerHTML = `
+            <div class="test-info">
+                <div class="test-icon">
+                    <i class="fas fa-${subjectIcon}"></i>
+                </div>
+                <div class="test-details">
+                    <h4>${subjectName}</h4>
+                    <p>${timeAgo}</p>
+                </div>
+            </div>
+            <div class="test-score">${testData.score || 0}<span class="test-percentage">%</span></div>
+        `;
+        
+        return testItem;
+    }
+
+    function formatTimeAgo(date) {
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        
+        if (diffMinutes < 1) return 'Just now';
+        if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+        if (diffHours < 24) return `${diffHours} hours ago`;
+        if (diffDays < 7) return `${diffDays} days ago`;
+        return date.toLocaleDateString();
+    }
+
+    function getSubjectIcon(subject) {
+        const iconMap = {
+            'mathematics': 'calculator',
+            'english': 'book',
+            'physics': 'atom',
+            'chemistry': 'flask',
+            'biology': 'dna',
+            'accounting': 'calculator',
+            'literature': 'book-open',
+            'government': 'landmark',
+            'commerce': 'store',
+            'economics': 'chart-line',
+            'crk': 'church'
+        };
+        
+        return iconMap[subject] || 'book';
+    }
+
     function shuffleArray(array) {
         if (!array || array.length === 0) return [];
         const shuffled = [...array];
@@ -802,7 +1228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Initialize dashboard
+    // Call initDashboard to start everything
     console.log("DOM loaded, calling initDashboard...");
     initDashboard();
 });
