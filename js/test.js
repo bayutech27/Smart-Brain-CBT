@@ -392,7 +392,7 @@ function autoSubmitTest() {
     }, 1000);
 }
 
-// ⭐⭐ FIXED: Update ONLY total test count when test is submitted (NOT weekly count) ⭐⭐
+// FIXED: Only update total test count (weekly count already updated in dashboard.js)
 async function updateTotalTestCountInFirestore() {
     try {
         const user = auth.currentUser;
@@ -401,28 +401,16 @@ async function updateTotalTestCountInFirestore() {
             return;
         }
         
-        // Get fresh user data
-        const userDocRef = doc(db, "users", user.uid);
-        const userDoc = await getDoc(userDocRef);
+        const userRef = doc(db, "users", user.uid);
         
-        if (userDoc.exists()) {
-            const userData = userDoc.data();
-            
-            console.log("Updating total test count (weekly count already updated):", { 
-                plan: userData.plan,
-                currentTotal: userData.totalTestsTaken || 0 
-            });
-            
-            // ⭐⭐ ONLY update totalTestsTaken, NOT testsTakenThisWeek ⭐⭐
-            // (weekly count was already updated in dashboard.js when test started)
-            const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, {
-                totalTestsTaken: increment(1), // Only increment total
-                lastActivity: serverTimestamp()
-            });
-            
-            console.log("✅ Total test count incremented in Firestore");
-        }
+        // ⭐⭐ ONLY update totalTestsTaken, NOT testsTakenThisWeek ⭐⭐
+        // (weekly count was already updated in dashboard.js when test started)
+        await updateDoc(userRef, {
+            totalTestsTaken: increment(1), // Only increment total
+            lastActivity: serverTimestamp()
+        });
+        
+        console.log("✅ Total test count incremented in Firestore");
     } catch (error) {
         console.error("❌ Error updating total test count in Firestore:", error);
         // Don't throw error here - we don't want to prevent test submission

@@ -159,30 +159,37 @@ document.addEventListener('DOMContentLoaded', () => {
             const isFreePlan = userData.plan === 'free';
             if (isFreePlan) return false; // Only check for paid users
             
-            // ====== FIXED SECTION ======
             // Check if user is 'paid' but missing subscriptionDate (for manual upgrades)
-            let subscriptionDate = userData.subscriptionDate?.toDate();
+            let subscriptionDate = userData.subscriptionDate;
+            
+            // Handle Firestore Timestamp conversion
+            if (subscriptionDate && typeof subscriptionDate.toDate === 'function') {
+                subscriptionDate = subscriptionDate.toDate();
+            } else if (subscriptionDate && subscriptionDate.seconds) {
+                // Convert from Firestore timestamp object
+                subscriptionDate = new Date(subscriptionDate.seconds * 1000);
+            } else if (subscriptionDate && typeof subscriptionDate === 'string') {
+                // Parse from string
+                subscriptionDate = new Date(subscriptionDate);
+            }
             
             if (!subscriptionDate) {
                 console.log("Premium user found without subscription date. Setting start date to NOW.");
                 
-                // FIX: Set subscription date to CURRENT DATE, not in the past!
-                subscriptionDate = new Date(); // TODAY
-                
+                const now = new Date();
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
-                    subscriptionDate: subscriptionDate // Store as server timestamp
+                    subscriptionDate: serverTimestamp()
                 });
                 
                 // Also update local data
                 if (currentUserData) {
-                    currentUserData.subscriptionDate = subscriptionDate;
+                    currentUserData.subscriptionDate = now;
                 }
                 
-                console.log(`Subscription date set to: ${subscriptionDate.toLocaleDateString()}`);
+                console.log(`Subscription date set to: ${now.toLocaleDateString()}`);
                 return false; // Plan just started, not expired
             }
-            // ====== END FIX ======
             
             const now = new Date();
             const daysSinceSubscription = Math.floor((now - subscriptionDate) / (1000 * 60 * 60 * 24));
@@ -196,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
                     plan: 'free',
-                    planExpiredAt: now,
+                    planExpiredAt: serverTimestamp(),
                     previousPlan: 'paid',
                     subscriptionDate: null // Clear subscription date
                 });
@@ -280,7 +287,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // FIXED: Check and reset weekly test count for free users
     async function checkAndResetTestCount(userId, userData) {
         try {
-            const lastReset = userData.lastTestResetDate?.toDate();
+            let lastReset = userData.lastTestResetDate;
+            
+            // Handle Firestore Timestamp conversion
+            if (lastReset && typeof lastReset.toDate === 'function') {
+                lastReset = lastReset.toDate();
+            } else if (lastReset && lastReset.seconds) {
+                lastReset = new Date(lastReset.seconds * 1000);
+            } else if (lastReset && typeof lastReset === 'string') {
+                lastReset = new Date(lastReset);
+            }
+            
             const now = new Date();
             
             console.log("Checking weekly reset:", {
@@ -295,7 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
                     testsTakenThisWeek: 0,
-                    lastTestResetDate: now
+                    lastTestResetDate: serverTimestamp()
                 });
                 
                 if (currentUserData) {
@@ -318,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, {
                     testsTakenThisWeek: 0,
-                    lastTestResetDate: now
+                    lastTestResetDate: serverTimestamp()
                 });
                 
                 console.log("Weekly test count reset to 0");
@@ -411,10 +428,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const userRef = doc(db, "users", user.uid);
             await updateDoc(userRef, {
                 plan: 'paid',
-                subscriptionDate: new Date(),
+                subscriptionDate: serverTimestamp(),
                 planExpiredAt: null,
                 previousPlan: 'free',
-                lastUpgraded: new Date()
+                lastUpgraded: serverTimestamp()
             });
             
             // Update local data
@@ -506,10 +523,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 email: user.email,
                 plan: 'free',
                 testsTakenThisWeek: 0,
-                lastTestResetDate: new Date(), // Initialize reset date
+                lastTestResetDate: serverTimestamp(), // Initialize reset date
                 totalTestsTaken: 0,
                 profilePicture: '',
-                joinedAt: new Date(),
+                joinedAt: serverTimestamp(),
                 status: 'active',
                 subscriptionDate: null,
                 planExpiredAt: null,
@@ -541,10 +558,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // Calculate days remaining for premium users
         let daysRemaining = 0;
         if (!isFreePlan && currentUserData.subscriptionDate) {
-            const subscriptionDate = currentUserData.subscriptionDate.toDate();
-            const now = new Date();
-            const daysSinceSubscription = Math.floor((now - subscriptionDate) / (1000 * 60 * 60 * 24));
-            daysRemaining = Math.max(0, PREMIUM_PLAN_DURATION_DAYS - daysSinceSubscription);
+            let subscriptionDate = currentUserData.subscriptionDate;
+            
+            // Handle Firestore Timestamp conversion
+            if (subscriptionDate && typeof subscriptionDate.toDate === 'function') {
+                subscriptionDate = subscriptionDate.toDate();
+            } else if (subscriptionDate && subscriptionDate.seconds) {
+                subscriptionDate = new Date(subscriptionDate.seconds * 1000);
+            }
+            
+            if (subscriptionDate && subscriptionDate instanceof Date) {
+                const now = new Date();
+                const daysSinceSubscription = Math.floor((now - subscriptionDate) / (1000 * 60 * 60 * 24));
+                daysRemaining = Math.max(0, PREMIUM_PLAN_DURATION_DAYS - daysSinceSubscription);
+            }
         }
         
         // Update plan status display
@@ -598,7 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // REAL-TIME STATS LISTENER
+    // REAL-TIME STATS LISTENER - FIXED VERSION
     // =============================================
     function setupRealTimeStats(userId) {
         // Clean up previous listener if exists
@@ -614,7 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
         );
         
         unsubscribeStats = onSnapshot(q, (snapshot) => {
-            console.log("Real-time update received for user:", userId);
+            console.log("Real-time update received for user:", userId, "Docs count:", snapshot.size);
             
             // Update statistics
             updateStatistics(snapshot);
@@ -640,7 +667,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         snapshot.forEach((doc) => {
             const testData = doc.data();
-            if (testData.score) {
+            if (testData.score !== undefined && testData.score !== null) {
                 totalTests++;
                 totalScore += testData.score;
             }
@@ -682,40 +709,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update recent tests from snapshot
     function updateRecentTests(snapshot) {
+        if (!testsList) return;
+        
         if (snapshot.empty) {
-            if (testsList) {
-                testsList.innerHTML = `
-                    <div class="test-item placeholder">
-                        <div class="test-info">
-                            <div class="test-icon">
-                                <i class="fas fa-hourglass-half"></i>
-                            </div>
-                            <div class="test-details">
-                                <h4>No tests yet</h4>
-                                <p>Take your first practice test!</p>
-                            </div>
+            testsList.innerHTML = `
+                <div class="test-item placeholder">
+                    <div class="test-info">
+                        <div class="test-icon">
+                            <i class="fas fa-hourglass-half"></i>
                         </div>
-                        <div class="test-score">0<span class="test-percentage">%</span></div>
+                        <div class="test-details">
+                            <h4>No tests yet</h4>
+                            <p>Take your first practice test!</p>
+                        </div>
                     </div>
-                `;
-            }
+                    <div class="test-score">0<span class="test-percentage">%</span></div>
+                </div>
+            `;
             return;
         }
         
-        if (testsList) {
-            testsList.innerHTML = '';
-            
-            // Take only the most recent tests based on limit
-            let count = 0;
-            snapshot.forEach((doc) => {
-                if (count < RECENT_TESTS_LIMIT) {
-                    const testData = doc.data();
-                    const testItem = createTestItem(testData);
-                    testsList.appendChild(testItem);
-                    count++;
-                }
-            });
-        }
+        testsList.innerHTML = '';
+        
+        // Take only the most recent tests based on limit
+        let count = 0;
+        snapshot.forEach((doc) => {
+            if (count < RECENT_TESTS_LIMIT) {
+                const testData = doc.data();
+                const testItem = createTestItem(testData);
+                testsList.appendChild(testItem);
+                count++;
+            }
+        });
     }
 
     // Setup subject dropdown based on plan
@@ -757,7 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // TEST LIMIT VALIDATION
+    // TEST LIMIT VALIDATION - FIXED
     // =============================================
     async function validateTestStart() {
         if (!currentUserData) return { valid: false, message: "User data not loaded" };
@@ -767,7 +792,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isFreePlan) {
             // Check weekly limit
             const testsTakenThisWeek = currentUserData.testsTakenThisWeek || 0;
-            console.log("Validating test start:", { testsTakenThisWeek, FREE_PLAN_WEEKLY_LIMIT });
+            console.log("Validating test start:", { 
+                testsTakenThisWeek, 
+                FREE_PLAN_WEEKLY_LIMIT,
+                remaining: FREE_PLAN_WEEKLY_LIMIT - testsTakenThisWeek 
+            });
             
             if (testsTakenThisWeek >= FREE_PLAN_WEEKLY_LIMIT) {
                 return {
@@ -789,24 +818,38 @@ document.addEventListener('DOMContentLoaded', () => {
         return { valid: true, message: "" };
     }
 
+    // FIXED: Increment test count when test starts
     async function incrementTestCount() {
         try {
             const user = auth.currentUser;
-            if (!user) return;
+            if (!user) {
+                console.error("No user logged in");
+                return;
+            }
             
             const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, {
-                testsTakenThisWeek: increment(1),
-                totalTestsTaken: increment(1),
-                lastActivity: new Date()
-            });
             
-            // Update local data
-            if (currentUserData) {
-                currentUserData.testsTakenThisWeek = (currentUserData.testsTakenThisWeek || 0) + 1;
-                currentUserData.totalTestsTaken = (currentUserData.totalTestsTaken || 0) + 1;
-                updateUIForPlan();
-                console.log("Test count incremented:", currentUserData.testsTakenThisWeek);
+            // Use transaction-like approach to ensure we have latest data
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const currentCount = userData.testsTakenThisWeek || 0;
+                
+                console.log("Incrementing test count from:", currentCount, "to:", currentCount + 1);
+                
+                await updateDoc(userRef, {
+                    testsTakenThisWeek: increment(1),
+                    totalTestsTaken: increment(1),
+                    lastActivity: serverTimestamp()
+                });
+                
+                // Update local data
+                if (currentUserData) {
+                    currentUserData.testsTakenThisWeek = currentCount + 1;
+                    currentUserData.totalTestsTaken = (currentUserData.totalTestsTaken || 0) + 1;
+                    updateUIForPlan();
+                    console.log("Test count updated locally:", currentUserData.testsTakenThisWeek);
+                }
             }
         } catch (error) {
             console.error("Error incrementing test count:", error);
@@ -870,6 +913,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return total + (parseInt(q.timeLimit) || 120);
             }, 0);
             
+            // Increment test count for free users BEFORE starting test
+            if (currentUserData.plan === 'free') {
+                console.log("Incrementing test count for free user before test starts");
+                await incrementTestCount();
+            }
+            
             // Store user plan info for test page
             const testData = {
                 testId: generateTestId(),
@@ -885,11 +934,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 userPlan: currentUserData.plan, // Include plan info
                 plan: currentUserData.plan || 'free' // Also store plan separately for test page
             };
-            
-            // Increment test count for free users BEFORE starting test
-            if (currentUserData.plan === 'free') {
-                await incrementTestCount();
-            }
             
             sessionStorage.setItem('currentTest', JSON.stringify(testData));
             sessionStorage.removeItem('previousTest');
@@ -1143,7 +1187,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let timeAgo = 'Recently';
         if (testData.completedAt) {
-            const completedDate = testData.completedAt.toDate();
+            const completedDate = testData.completedAt.toDate ? 
+                testData.completedAt.toDate() : 
+                new Date(testData.completedAt);
             timeAgo = formatTimeAgo(completedDate);
         }
         
