@@ -79,16 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             userEmail.includes('administrator') || 
                             userEmail === 'smartbraincbt@gmail.com'; // Add your admin email here
         
-        // Create basic user document if missing
-        await setDoc(doc(db, "users", userId), {
-          uid: userId,
-          email: userEmail,
-          role: isAdminEmail ? "admin" : "student", // SET CORRECT ROLE
-          plan: "free",
-          createdAt: serverTimestamp(),
-          lastLogin: serverTimestamp()
-        });
-        
+             
         // Redirect based on role
         if (isAdminEmail) {
           alert("Admin account created. Redirecting to admin panel...");
@@ -533,4 +524,5 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   console.log("✅ Auth.js loaded successfully with strict plan enforcement");
+
 });
