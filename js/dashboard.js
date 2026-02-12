@@ -81,6 +81,43 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUserData = null;
     let unsubscribeStats = null;
 
+    // --- FIX 5: Welcome banner function (congratulations message) ---
+    function showWelcomeBanner(userName) {
+        const shouldShow = sessionStorage.getItem('showWelcome');
+        if (!shouldShow) return;
+
+        const banner = document.createElement('div');
+        banner.id = 'welcomeBanner';
+        banner.style.cssText = `
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            color: white;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            font-size: 1.1rem;
+            animation: fadeIn 0.5s;
+        `;
+        banner.innerHTML = `
+            <i class="fas fa-tada" style="font-size: 1.5rem; margin-right: 0.5rem;"></i>
+            🎉 Congratulations, <strong>${userName}</strong>! Your FREE plan account is ready.
+            <button onclick="this.parentElement.remove(); sessionStorage.removeItem('showWelcome');" 
+                    style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.3rem 1rem; border-radius: 20px; margin-left: 1rem; cursor: pointer;">
+                Dismiss
+            </button>
+        `;
+
+        const container = document.querySelector('.dashboard-container');
+        if (container) {
+            container.prepend(banner);
+            // Auto-remove after 8 seconds as fallback
+            setTimeout(() => {
+                if (banner.parentNode) banner.remove();
+                sessionStorage.removeItem('showWelcome');
+            }, 8000);
+        }
+    }
+
     // Initialize dashboard functionality
     function initDashboard() {
         console.log("Dashboard initializing...");
@@ -911,10 +948,120 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // PROFILE PICTURE HANDLING - FULLY FIXED
-    // Uploads to profilePicture key in Firestore
-    // Loads from profilePicture key in Firestore
+    // 🖼️ PROFILE PICTURE HANDLING - IMPROVED
     // =============================================
+    
+    /**
+     * Converts a File object to a Base64 data URL.
+     */
+    function convertImageToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    /**
+     * Compresses an image to a target maximum size (in KB) by adjusting
+     * dimensions and JPEG quality.
+     * @param {File} file - Original image file.
+     * @param {number} targetSizeKB - Desired maximum file size in kilobytes.
+     * @returns {Promise<string>} - Base64 data URL of compressed image.
+     */
+    async function compressToTargetSize(file, targetSizeKB = 200) {
+        // Convert target size to bytes, accounting for base64 overhead (+33%)
+        const targetBase64Length = targetSizeKB * 1024 * 1.33;
+        
+        // Start with reasonable max dimensions
+        let maxWidth = 800;
+        let maxHeight = 800;
+        let quality = 0.8;
+        
+        let compressedBase64 = await compressImageWithParams(file, maxWidth, maxHeight, quality);
+        
+        // If already under target, return it
+        if (compressedBase64.length <= targetBase64Length) {
+            return compressedBase64;
+        }
+        
+        // Reduce quality step by step
+        const qualitySteps = [0.7, 0.6, 0.5, 0.4, 0.3, 0.2];
+        for (let q of qualitySteps) {
+            compressedBase64 = await compressImageWithParams(file, maxWidth, maxHeight, q);
+            if (compressedBase64.length <= targetBase64Length) {
+                return compressedBase64;
+            }
+        }
+        
+        // If still too large, reduce dimensions
+        const dimensionSteps = [600, 500, 400, 300];
+        for (let dim of dimensionSteps) {
+            maxWidth = dim;
+            maxHeight = dim;
+            compressedBase64 = await compressImageWithParams(file, maxWidth, maxHeight, 0.6);
+            if (compressedBase64.length <= targetBase64Length) {
+                return compressedBase64;
+            }
+            // Try lower quality with smaller dimensions
+            compressedBase64 = await compressImageWithParams(file, maxWidth, maxHeight, 0.4);
+            if (compressedBase64.length <= targetBase64Length) {
+                return compressedBase64;
+            }
+        }
+        
+        // Last resort: 300px, quality 0.3
+        return await compressImageWithParams(file, 300, 300, 0.3);
+    }
+
+    /**
+     * Internal helper: compresses image with given dimensions and quality.
+     */
+    function compressImageWithParams(file, maxWidth, maxHeight, quality) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                img.src = e.target.result;
+                img.onload = () => {
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width = Math.round((width * maxHeight) / height);
+                            height = maxHeight;
+                        }
+                    }
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+                    resolve(compressedBase64);
+                };
+                img.onerror = reject;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    /**
+     * Handles profile picture upload: converts to Base64, compresses if file ≥ 1MB,
+     * and saves to Firestore under `profilePicture` field.
+     */
     async function handleProfileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -932,21 +1079,23 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             // Show loading state
-            const originalSrc = profileImg.src;
             profileImg.src = '';
             profileImg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>';
             
-            // Convert to base64
-            let base64 = await convertImageToBase64(file);
+            let base64;
+            const ONE_MB = 1048576; // bytes
             
-            // Compress if too large
-            if (base64.length > 900000) {
-                base64 = await compressImage(file, 600, 600, 0.7);
+            if (file.size >= ONE_MB) {
+                console.log(`File size: ${(file.size / 1024).toFixed(2)}KB, compressing to ≤200KB...`);
+                base64 = await compressToTargetSize(file, 200);
+                console.log(`Compressed size: ${Math.round(base64.length / 1024)}KB (base64)`);
+            } else {
+                // File is under 1MB, just convert to base64 (no compression needed)
+                base64 = await convertImageToBase64(file);
+                console.log(`Original size (base64): ${Math.round(base64.length / 1024)}KB`);
             }
             
-            console.log("Uploading profile picture, size:", Math.round(base64.length / 1024), "KB");
-            
-            // Save to Firestore - profilePicture key
+            // Save to Firestore
             const userRef = doc(db, "users", user.uid);
             await updateDoc(userRef, {
                 profilePicture: base64,
@@ -969,81 +1118,47 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } catch (error) {
             console.error('Error uploading profile picture:', error);
-            console.error('Error code:', error.code);
-            console.error('Error message:', error.message);
-            
-            alert(`❌ Failed to upload profile picture: ${error.message || 'Please try again.'}`);
-            
-            // Restore default image
+            console.error('Error code:', error.code); // ← helpful for debugging
+
+            // --- FIX 6: Detailed error messages for profile picture permission ---
+            let userMessage = '❌ Failed to upload profile picture. ';
+            if (error.code === 'permission-denied') {
+                userMessage += 'Permission denied – your Firestore security rules are blocking this update.\n';
+                userMessage += 'Please ask the administrator to add the following rule:\n\n';
+                userMessage += 'allow update: if request.auth.uid == resource.id;\n';
+                userMessage += '(This allows users to update their own document.)';
+            } else if (error.code === 'not-found') {
+                userMessage += 'Your user profile document is missing. Try refreshing the page.';
+            } else if (error.code === 'resource-exhausted') {
+                userMessage += 'The image is too large. We already compress it, but please try a smaller image.';
+            } else {
+                userMessage += error.message || 'Please try again.';
+            }
+
+            alert(userMessage);
             setDefaultProfileImage();
-            
         } finally {
             event.target.value = '';
         }
     }
 
-    function convertImageToBase64(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
-    }
-
-    function compressImage(file, maxWidth, maxHeight, quality) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            const reader = new FileReader();
-            
-            reader.onload = (e) => {
-                img.src = e.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-                    
-                    if (width > height) {
-                        if (width > maxWidth) {
-                            height = Math.round((height * maxWidth) / width);
-                            width = maxWidth;
-                        }
-                    } else {
-                        if (height > maxHeight) {
-                            width = Math.round((width * maxHeight) / height);
-                            height = maxHeight;
-                        }
-                    }
-                    
-                    canvas.width = width;
-                    canvas.height = height;
-                    
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-                    
-                    const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-                    resolve(compressedBase64);
-                };
-                img.onerror = reject;
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
-    }
-
+    /**
+     * Loads user profile data into the UI, including the profile picture.
+     */
     async function loadUserProfile(userData) {
         if (userName) {
             const displayName = userData.fullName || userData.email || 'Student';
             userName.textContent = displayName;
+            // --- FIX 7: Show welcome banner after profile loads ---
+            showWelcomeBanner(displayName);
         }
         
         if (profileImg) {
-            // Load from profilePicture key in Firestore
             if (userData.profilePicture) {
                 console.log("Loading profile picture from Firestore");
                 profileImg.src = userData.profilePicture;
                 profileImg.alt = "Profile Picture";
-                profileImg.innerHTML = ''; // Clear any loading indicator
+                profileImg.innerHTML = '';
             } else {
                 console.log("No profile picture found, using default");
                 setDefaultProfileImage();
@@ -1051,6 +1166,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /**
+     * Sets a default avatar using the UI Avatars service.
+     */
     function setDefaultProfileImage() {
         if (!profileImg) return;
         
@@ -1065,8 +1183,17 @@ document.addEventListener('DOMContentLoaded', () => {
         
         profileImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4285F4&color=fff&size=120`;
         profileImg.alt = "Default Profile";
-        profileImg.innerHTML = ''; // Clear any loading indicator
+        profileImg.innerHTML = '';
     }
+
+    // --- FIX 8: Console hint for Firestore security rules ---
+    console.log(`
+📌 To fix profile picture permission, update Firestore rules:
+  match /users/{userId} {
+    allow read: if request.auth.uid == userId;
+    allow write: if request.auth.uid == userId;
+  }
+    `);
 
     // Initialize dashboard
     initDashboard();

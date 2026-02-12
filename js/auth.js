@@ -79,7 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             userEmail.includes('administrator') || 
                             userEmail === 'smartbraincbt@gmail.com'; // Add your admin email here
         
-             
+        
         // Redirect based on role
         if (isAdminEmail) {
           alert("Admin account created. Redirecting to admin panel...");
@@ -211,7 +211,6 @@ document.addEventListener("DOMContentLoaded", () => {
         role: "student", // Strictly student role
         plan: "free",    // Strictly free plan - NO OTHER OPTIONS
         subscriptionDate: serverTimestamp(),
-        testsTaken: 0,
         totalTestsTaken: 0,
         testsTakenThisWeek: 0,
         lastTestResetDate: serverTimestamp(),
@@ -225,6 +224,11 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("User data to save - VERIFY PLAN:", userData.plan);
       console.log("Full user data:", userData);
       
+      // --- FIX 1: Verify Firestore is available ---
+      if (!db) {
+        throw new Error("Firestore database is not initialized. Check main.js.");
+      }
+
       // Get the Firestore document reference
       const userDocRef = doc(db, "users", user.uid);
       console.log("Firestore document path:", userDocRef.path);
@@ -255,6 +259,9 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("Step 5: Success - redirecting to dashboard...");
       alert(`🎉 Account created successfully!\n\nWelcome ${fullName}!\n\nYour account is on the FREE plan.`);
       
+      // --- FIX 2: Set sessionStorage flag for welcome banner ---
+      sessionStorage.setItem('showWelcome', 'true');
+      
       // Clear form
       if (firstName) firstName.value = "";
       if (lastName) lastName.value = "";
@@ -269,6 +276,8 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("=== SIGNUP FAILED ===");
       console.error("Error code:", error.code);
       console.error("Error message:", error.message);
+      // --- FIX 3: Log full error for debugging ---
+      console.error("Full error:", error);
       
       // Clean up: If user was created in Auth but Firestore failed, delete the Auth user
       if (user) {
@@ -281,7 +290,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
       
-      // Show user-friendly error messages
+      // --- FIX 4: Show user-friendly error messages with specific details ---
       let errorMessage = "An error occurred during sign up. Please try again.";
       
       if (error.code === 'auth/email-already-in-use') {
@@ -293,7 +302,11 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (error.code === 'auth/operation-not-allowed') {
         errorMessage = "Email/password accounts are not enabled. Please contact support.";
       } else if (error.code === 'permission-denied') {
-        errorMessage = "❌ PERMISSION DENIED\n\nFirestore security rules are blocking user creation.\n\nCheck console for details.";
+        errorMessage = "❌ PERMISSION DENIED\n\nFirestore security rules are blocking user creation.\nCheck your Firebase console → Firestore → Rules.";
+      } else if (error.code === 'unavailable' || error.code === 'deadline-exceeded') {
+        errorMessage = "⚠️ Firestore is temporarily unavailable. Please check your network and try again.";
+      } else if (error.message && error.message.includes('Firestore is not initialized')) {
+        errorMessage = "❌ Firestore is not initialized. Verify main.js exports db correctly.";
       }
       
       alert(`❌ ${errorMessage}`);
@@ -347,12 +360,12 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("- Email:", userData.email);
         
         // SECURITY CHECK: Verify the document belongs to this user
-       // if (userData.uid !== user.uid) {
-       //   console.error("❌ SECURITY ALERT: Document UID doesn't match auth UID!");
-       //   alert("❌ Security error detected. Please contact support.");
-        //  await signOut(auth);
-        //  return;
-        //}
+        // if (userData.uid !== user.uid) {
+        //   console.error("❌ SECURITY ALERT: Document UID doesn't match auth UID!");
+        //   alert("❌ Security error detected. Please contact support.");
+        //   await signOut(auth);
+        //   return;
+        // }
         
         // PLAN VERIFICATION: Must be either "free" or undefined (defaults to free)
         if (plan !== "free") {
@@ -524,5 +537,4 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   console.log("✅ Auth.js loaded successfully with strict plan enforcement");
-
 });
