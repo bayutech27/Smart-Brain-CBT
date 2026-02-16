@@ -155,6 +155,20 @@
       border-radius: 5px;
       border-left: 3px solid #17a2b8;
     }
+
+    /* ===== COPY PROTECTION ===== */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  -moz-user-select: none;
+}
+
+/* Allow selection only inside input or textarea if needed */
+input, textarea {
+  user-select: auto;
+}
+
   </style>
 </head>
 <body>
@@ -356,6 +370,38 @@
 
 <script src="js/script.js"></script>
 <script type="module" src="js/test.js"></script>
+<script>
+/* ===== SMART BRAIN CBT COPY PROTECTION ===== */
+
+// Disable right click
+document.addEventListener("contextmenu", function(e) {
+  e.preventDefault();
+});
+
+// Disable copy, cut, paste
+["copy", "cut", "paste"].forEach(function(event) {
+  document.addEventListener(event, function(e) {
+    e.preventDefault();
+  });
+});
+
+// Disable common keyboard shortcuts
+document.addEventListener("keydown", function(e) {
+  if (
+    (e.ctrlKey && ["c", "x", "u", "s", "a", "p"].includes(e.key.toLowerCase())) ||
+    (e.ctrlKey && e.shiftKey && ["i", "j"].includes(e.key.toLowerCase())) ||
+    (e.key === "F12")
+  ) {
+    e.preventDefault();
+  }
+});
+
+// Disable text drag
+document.addEventListener("dragstart", function(e) {
+  e.preventDefault();
+});
+</script>
+
 
 </body>
 </html>
