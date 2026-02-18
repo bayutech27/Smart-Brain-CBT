@@ -218,7 +218,8 @@ document.addEventListener("DOMContentLoaded", () => {
         status: "active",
         profilePicture: "",
         createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp()
+        lastLogin: serverTimestamp(),
+        unlimitedPlan: "false"
       };
 
       console.log("User data to save - VERIFY PLAN:", userData.plan);
