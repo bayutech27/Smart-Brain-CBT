@@ -233,14 +233,14 @@
       </div>
     </section>
 
-    <!-- Practice Section -->
-    <section class="practice-section">
+    <!-- QUICK TEST SECTION (Existing) -->
+    <section class="practice-section" id="quickTestSection">
       <div class="section-header">
-        <h2><i class="fas fa-brain"></i> Start Practice Test</h2>
+        <h2><i class="fas fa-bolt"></i> Quick Test (20 questions, 20 mins)</h2>
         <p class="section-subtitle">Select your exam and subject to begin</p>
       </div>
       
-      <form class="practice-form" id="practiceForm">
+      <form class="practice-form" id="quickTestForm">
         <div class="form-row">
           <div class="form-group">
             <label for="classSelect"><i class="fas fa-graduation-cap"></i> Select Exam</label>
@@ -258,8 +258,8 @@
             </select>
           </div>
           
-          <button type="button" id="startTestBtn" class="start-test-btn">
-            <i class="fas fa-play-circle"></i> Start Test
+          <button type="button" id="startQuickTestBtn" class="start-test-btn">
+            <i class="fas fa-play-circle"></i> Start Quick Test
           </button>
         </div>
         
@@ -269,28 +269,88 @@
       </form>
     </section>
 
-    <!-- Recent Tests Section - RESTORED TO ORIGINAL STRUCTURE -->
+    <!-- JAMB DRILL SECTION (New) -->
+    <section class="practice-section" id="jambDrillSection">
+      <div class="section-header">
+        <h2><i class="fas fa-graduation-cap"></i> JAMB Drill (4 Subjects, 120 mins, scored /400)</h2>
+        <p class="section-subtitle">English is compulsory. Choose 3 additional subjects.</p>
+      </div>
+
+      <div id="jambDrillPremiumNotice" class="plan-restrictions" style="background: #f8f9fa; border-left-color: #9C27B0; margin-bottom: 20px; display: none;">
+        <p><i class="fas fa-crown" style="color: #9C27B0;"></i> <strong>Premium Feature:</strong> JAMB Drill is available only for Premium users. <a href="#" id="upgradeFromJamb" style="color:#9C27B0; font-weight:600;">Upgrade now</a> to access.</p>
+      </div>
+
+      <form class="practice-form" id="jambDrillForm">
+        <!-- English (compulsory, pre-selected, disabled) -->
+        <div class="form-group">
+          <label><i class="fas fa-book"></i> English (Compulsory)</label>
+          <div class="checkbox-item" style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+            <input type="checkbox" id="subjectEnglish" value="english" checked disabled style="width: 18px; height: 18px;">
+            <label for="subjectEnglish" style="margin: 0; font-weight: 500;">English Language (60 questions)</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label><i class="fas fa-book"></i> Choose 3 Additional Subjects</label>
+          <div class="checkbox-group" id="additionalSubjects" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 12px; margin-top: 10px;">
+            <!-- Will be populated by JS with checkboxes for all subjects except english -->
+          </div>
+          <small id="subjectSelectionHint" style="color: #666; display: block; margin-top: 8px;">Select exactly 3 subjects</small>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <button type="button" id="startJambDrillBtn" class="start-test-btn" style="background: linear-gradient(135deg, #9C27B0, #6A11CB);">
+            <i class="fas fa-play-circle"></i> Start JAMB Drill
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- RECENT TESTS: QUICK TEST -->
     <section class="recent-tests">
       <div class="tests-header">
-        <h2><i class="fas fa-history"></i> Recent Test Results</h2>
-        <a href="#" class="view-all" id="viewAllResults">
+        <h2><i class="fas fa-history"></i> Quick Test Recent</h2>
+        <a href="#" class="view-all" id="viewAllQuick">
           View All <i class="fas fa-arrow-right"></i>
         </a>
       </div>
-      
-      <div class="tests-list" id="testsList">
-        <!-- Test items will be dynamically populated -->
+      <div class="tests-list" id="quickTestsList">
+        <!-- Quick test items will be dynamically populated -->
         <div class="test-item placeholder">
           <div class="test-info">
             <div class="test-icon">
               <i class="fas fa-hourglass-half"></i>
             </div>
             <div class="test-details">
-              <h4>No tests yet</h4>
-              <p>Take your first practice test!</p>
+              <h4>No Quick Tests yet</h4>
+              <p>Take your first Quick Test!</p>
             </div>
           </div>
           <div class="test-score">0<span class="test-percentage">%</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RECENT TESTS: JAMB DRILL -->
+    <section class="recent-tests">
+      <div class="tests-header">
+        <h2><i class="fas fa-history"></i> JAMB Drill Recent</h2>
+        <a href="#" class="view-all" id="viewAllJamb">
+          View All <i class="fas fa-arrow-right"></i>
+        </a>
+      </div>
+      <div class="tests-list" id="jambDrillTestsList">
+        <div class="test-item placeholder">
+          <div class="test-info">
+            <div class="test-icon">
+              <i class="fas fa-hourglass-half"></i>
+            </div>
+            <div class="test-details">
+              <h4>No JAMB Drills yet</h4>
+              <p>Try the JAMB Drill mode!</p>
+            </div>
+          </div>
+          <div class="test-score">0<span class="test-percentage">/400</span></div>
         </div>
       </div>
     </section>
