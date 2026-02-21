@@ -1,4 +1,4 @@
-
+// js/dashboard.js - Student Dashboard with Firestore Integration
 import { auth, db } from "./main.js";
 import { 
     collection, 
@@ -9,6 +9,7 @@ import {
     getDoc,
     doc,
     updateDoc,
+    increment,
     serverTimestamp,
     onSnapshot,
     setDoc
@@ -80,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUserData = null;
     let unsubscribeStats = null;
 
-    // --- Welcome banner function ---
+    // --- FIX 5: Welcome banner function (congratulations message) ---
     function showWelcomeBanner(userName) {
         const shouldShow = sessionStorage.getItem('showWelcome');
         if (!shouldShow) return;
@@ -109,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.querySelector('.dashboard-container');
         if (container) {
             container.prepend(banner);
+            // Auto-remove after 8 seconds as fallback
             setTimeout(() => {
                 if (banner.parentNode) banner.remove();
                 sessionStorage.removeItem('showWelcome');
@@ -166,72 +168,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // PREMIUM CHECK FUNCTION (supports unlimitedPlan)
-    // =============================================
-    /**
-     * Determines if a user has premium access.
-     * @param {Object} user - The user data object from Firestore.
-     * @returns {boolean} - True if premium (unlimitedPlan or active 30-day subscription).
-     * 
-     * How unlimitedPlan works:
-     * - unlimitedPlan is a boolean field in the user's Firestore document.
-     * - When true, the user is considered premium indefinitely, bypassing all free limits.
-     * - It does not expire and is independent of the 30-day subscription.
-     * 
-     * How it can be toggled in Firestore:
-     * - An admin can manually set/unset the field using Firestore console or an admin function.
-     * - Example: db.collection('users').doc(userId).update({ unlimitedPlan: true });
-     * 
-     * How this function respects existing limits:
-     * - If unlimitedPlan is true, returns true immediately (premium).
-     * - Otherwise, checks the 30-day premium subscription logic (plan === 'paid' and not expired).
-     * - Free users (with neither) return false, keeping their 3-tests/week restriction.
-     * - The function does NOT modify any data, only reads the user object.
-     */
-    function isPremium(user) {
-        // If unlimitedPlan is explicitly true, they are premium.
-        if (user.unlimitedPlan === true) {
-            return true;
-        }
-
-        // If user has a paid plan, check if it's still within 30 days.
-        if (user.plan === 'paid') {
-            let subscriptionDate = user.subscriptionDate;
-            if (!subscriptionDate) {
-                return false;
-            }
-
-            // Convert to Date object
-            if (subscriptionDate && typeof subscriptionDate.toDate === 'function') {
-                subscriptionDate = subscriptionDate.toDate();
-            } else if (subscriptionDate && subscriptionDate.seconds) {
-                subscriptionDate = new Date(subscriptionDate.seconds * 1000);
-            } else if (subscriptionDate && typeof subscriptionDate === 'string') {
-                subscriptionDate = new Date(subscriptionDate);
-            }
-
-            if (!(subscriptionDate instanceof Date) || isNaN(subscriptionDate)) {
-                console.warn('Invalid subscriptionDate for user', user);
-                return false;
-            }
-
-            const now = new Date();
-            const daysSinceSubscription = Math.floor((now - subscriptionDate) / (1000 * 60 * 60 * 24));
-            return daysSinceSubscription < PREMIUM_PLAN_DURATION_DAYS;
-        }
-
-        // Neither unlimitedPlan nor active paid plan
-        return false;
-    }
-
-    // =============================================
     // FREE PLAN - 7 DAY RESET COUNTDOWN
     // =============================================
     async function checkAndResetTestCount(userId, userData) {
+        // Only free plan needs weekly reset
+        if (userData.plan !== 'free') return;
+        
         try {
-            // Skip reset for premium users (unlimitedPlan or active paid)
-            if (isPremium(userData)) return;
-
             let lastReset = userData.lastTestResetDate;
             
             if (lastReset && typeof lastReset.toDate === 'function') {
@@ -284,18 +227,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // PAID PLAN - 30 DAY COUNTDOWN (skip if unlimitedPlan)
+    // PAID PLAN - 30 DAY COUNTDOWN (UNLIMITED PLAN DOES NOT EXPIRE)
     // =============================================
     async function checkPlanExpiration(userId, userData) {
+        // Only paid (Premium 30-day) plan should be checked for expiration
+        if (userData.plan !== 'paid') return false;
+        
         try {
-            // If user has unlimitedPlan, they never expire, so skip.
-            if (userData.unlimitedPlan === true) {
-                return false;
-            }
-
-            // Only check expiration for paid plan users.
-            if (userData.plan !== 'paid') return false;
-            
             let subscriptionDate = userData.subscriptionDate;
             
             if (subscriptionDate && typeof subscriptionDate.toDate === 'function') {
@@ -422,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // UPGRADE TO PREMIUM
+    // UPGRADE TO PREMIUM (30-day)
     // =============================================
     async function upgradeToPremium() {
         try {
@@ -486,14 +424,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (userSnap.exists()) {
                 currentUserData = userSnap.data();
                 
-                // Ensure unlimitedPlan field exists (default false if missing)
-                if (currentUserData.unlimitedPlan === undefined) {
-                    currentUserData.unlimitedPlan = false;
-                }
-                
+                // Only check expiration for paid plan
                 await checkPlanExpiration(userId, currentUserData);
                 
-                // If plan changed due to expiration, refresh data
                 if (currentUserData.plan !== userSnap.data().plan) {
                     const updatedSnap = await getDoc(userRef);
                     if (updatedSnap.exists()) {
@@ -501,6 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 
+                // Weekly reset only for free plan
                 await checkAndResetTestCount(userId, currentUserData);
                 
                 const finalSnap = await getDoc(userRef);
@@ -535,7 +469,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 fullName: user.displayName || user.email.split('@')[0],
                 email: user.email,
                 plan: 'free',
-                unlimitedPlan: false,  // default for new users
                 testsTakenThisWeek: 0,
                 lastTestResetDate: serverTimestamp(),
                 totalTestsTaken: 0,
@@ -548,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 lastUpgraded: null
             }, { merge: true });
             
-            console.log("Default user profile created with unlimitedPlan = false");
+            console.log("Default user profile created");
         } catch (error) {
             console.error("Error creating default profile:", error);
         }
@@ -719,17 +652,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUIForPlan() {
         if (!currentUserData) return;
         
-        const premium = isPremium(currentUserData);
-        const isFreePlan = !premium;
+        const isFreePlan = currentUserData.plan === 'free';
+        const isPaidPlan = currentUserData.plan === 'paid';
+        const isUnlimitedPlan = currentUserData.plan === 'unlimited';
+        
         const testsTakenThisWeek = currentUserData.testsTakenThisWeek || 0;
         const remainingTests = Math.max(0, FREE_PLAN_WEEKLY_LIMIT - testsTakenThisWeek);
         
         let daysRemaining = 0;
-        if (!premium) {
-            // Not premium, no days to show
-        } else if (currentUserData.unlimitedPlan) {
-            daysRemaining = -1; // special marker for unlimited
-        } else if (currentUserData.plan === 'paid' && currentUserData.subscriptionDate) {
+        if (isPaidPlan && currentUserData.subscriptionDate) {
             let subscriptionDate = currentUserData.subscriptionDate;
             
             if (subscriptionDate && typeof subscriptionDate.toDate === 'function') {
@@ -761,8 +692,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        if (userPlan) userPlan.textContent = premium ? 'Premium' : 'Free';
+        // Set plan name
+        if (userPlan) {
+            if (isFreePlan) userPlan.textContent = 'Free';
+            else if (isPaidPlan) userPlan.textContent = 'Premium';
+            else if (isUnlimitedPlan) userPlan.textContent = 'Unlimited';
+        }
         
+        // Set plan status message
         if (planStatus) {
             if (isFreePlan) {
                 if (daysUntilReset > 0 && daysUntilReset < 7) {
@@ -770,46 +707,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     planStatus.textContent = 'Basic Access';
                 }
-            } else {
-                if (currentUserData.unlimitedPlan) {
-                    planStatus.textContent = 'Unlimited (Permanent)';
-                } else {
-                    planStatus.textContent = daysRemaining > 0 ? 
-                        `${daysRemaining} days remaining` : 
-                        'Expiring soon';
-                }
+            } else if (isPaidPlan) {
+                planStatus.textContent = daysRemaining > 0 ? 
+                    `${daysRemaining} days remaining` : 
+                    'Expiring soon';
+            } else if (isUnlimitedPlan) {
+                planStatus.textContent = 'Lifetime Access';
             }
         }
         
-        if (planStatusCard) {
+        // Set card style and icon
+        if (planStatusCard && planIcon) {
             if (isFreePlan) {
                 planStatusCard.style.borderLeftColor = '#95a5a6';
                 planIcon.className = 'fas fa-user';
                 planIcon.style.color = '#95a5a6';
-            } else {
+            } else if (isPaidPlan) {
                 planStatusCard.style.borderLeftColor = '#9C27B0';
                 planIcon.className = 'fas fa-crown';
                 planIcon.style.color = '#FFD700';
+            } else if (isUnlimitedPlan) {
+                planStatusCard.style.borderLeftColor = '#00bcd4';
+                planIcon.className = 'fas fa-infinity';
+                planIcon.style.color = '#00bcd4';
             }
         }
         
+        // Set userPlanStatus text (shown near upgrade banner)
         if (userPlanStatus) {
             if (isFreePlan) {
                 userPlanStatus.innerHTML = `Free Plan • <strong>${remainingTests} tests remaining this week</strong>`;
                 if (remainingTests === 0) {
                     userPlanStatus.innerHTML = `Free Plan • <strong>Limit reached - resets in ${daysUntilReset} day${daysUntilReset !== 1 ? 's' : ''}</strong>`;
                 }
-            } else {
-                if (currentUserData.unlimitedPlan) {
-                    userPlanStatus.innerHTML = `👑 Unlimited Premium • <strong>Permanent access</strong>`;
-                } else {
-                    userPlanStatus.innerHTML = `🎉 Premium Member • <strong>${daysRemaining} days remaining</strong>`;
-                }
+            } else if (isPaidPlan) {
+                userPlanStatus.innerHTML = `🎉 Premium Member • <strong>${daysRemaining} days remaining</strong>`;
+            } else if (isUnlimitedPlan) {
+                userPlanStatus.innerHTML = `♾️ Unlimited Plan • <strong>Lifetime Access</strong>`;
             }
         }
         
+        // Show/hide test limit info (only for free)
         if (testLimitInfo) {
             testLimitInfo.style.display = isFreePlan ? 'block' : 'none';
+            if (testsRemaining && isFreePlan) {
+                testsRemaining.textContent = remainingTests;
+            }
         }
     }
 
@@ -818,8 +761,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         subjectSelect.innerHTML = '<option value="" disabled selected>Choose subject</option>';
         
-        const premium = isPremium(currentUserData);
-        const subjectsToShow = premium ? ALL_SUBJECTS.map(s => s.value) : FREE_PLAN_SUBJECTS;
+        const isFreePlan = currentUserData?.plan === 'free';
+        const subjectsToShow = isFreePlan ? FREE_PLAN_SUBJECTS : ALL_SUBJECTS.map(s => s.value);
         
         ALL_SUBJECTS.forEach(subject => {
             if (subjectsToShow.includes(subject.value)) {
@@ -831,13 +774,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         if (planRestrictions) {
-            planRestrictions.style.display = premium ? 'none' : 'block';
+            planRestrictions.style.display = isFreePlan ? 'block' : 'none';
         }
     }
 
     function showPremiumBanner() {
         if (!premiumBanner || !currentUserData) return;
-        premiumBanner.style.display = isPremium(currentUserData) ? 'none' : 'flex';
+        premiumBanner.style.display = currentUserData.plan === 'free' ? 'flex' : 'none';
     }
 
     // =============================================
@@ -846,10 +789,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function validateTestStart() {
         if (!currentUserData) return { valid: false, message: "User data not loaded" };
         
-        const premium = isPremium(currentUserData);
+        const isFreePlan = currentUserData.plan === 'free';
         
-        if (!premium) {
-            // Free user limits
+        if (isFreePlan) {
             const testsTakenThisWeek = currentUserData.testsTakenThisWeek || 0;
             
             if (testsTakenThisWeek >= FREE_PLAN_WEEKLY_LIMIT) {
@@ -889,7 +831,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // START PRACTICE TEST
+    // START PRACTICE TEST - COUNT INCREMENT REMOVED
+    // Count now increments in test.js after successful save
     // =============================================
     async function startPracticeTest() {
         const selectedExam = classSelect.value;
@@ -925,6 +868,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return total + (parseInt(q.timeLimit) || 120);
             }, 0);
             
+            // ⚠️ COUNT INCREMENT REMOVED FROM HERE
+            // Test count will be incremented in test.js after successful Firestore save
+            
             const testData = {
                 testId: generateTestId(),
                 examType: firestoreExamType,
@@ -935,8 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 startTime: new Date().toISOString(),
                 userId: auth.currentUser.uid,
                 userAnswers: Array(selectedQuestions.length).fill(null),
-                plan: currentUserData.plan || 'free',
-                unlimitedPlan: currentUserData.unlimitedPlan || false
+                plan: currentUserData.plan || 'free'
             };
             
             sessionStorage.setItem('currentTest', JSON.stringify(testData));
@@ -1025,9 +970,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // PROFILE PICTURE HANDLING
+    // 🖼️ PROFILE PICTURE HANDLING - IMPROVED
     // =============================================
     
+    /**
+     * Converts a File object to a Base64 data URL.
+     */
     function convertImageToBase64(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -1037,19 +985,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    /**
+     * Compresses an image to a target maximum size (in KB) by adjusting
+     * dimensions and JPEG quality.
+     * @param {File} file - Original image file.
+     * @param {number} targetSizeKB - Desired maximum file size in kilobytes.
+     * @returns {Promise<string>} - Base64 data URL of compressed image.
+     */
     async function compressToTargetSize(file, targetSizeKB = 200) {
+        // Convert target size to bytes, accounting for base64 overhead (+33%)
         const targetBase64Length = targetSizeKB * 1024 * 1.33;
         
+        // Start with reasonable max dimensions
         let maxWidth = 800;
         let maxHeight = 800;
         let quality = 0.8;
         
         let compressedBase64 = await compressImageWithParams(file, maxWidth, maxHeight, quality);
         
+        // If already under target, return it
         if (compressedBase64.length <= targetBase64Length) {
             return compressedBase64;
         }
         
+        // Reduce quality step by step
         const qualitySteps = [0.7, 0.6, 0.5, 0.4, 0.3, 0.2];
         for (let q of qualitySteps) {
             compressedBase64 = await compressImageWithParams(file, maxWidth, maxHeight, q);
@@ -1058,6 +1017,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
+        // If still too large, reduce dimensions
         const dimensionSteps = [600, 500, 400, 300];
         for (let dim of dimensionSteps) {
             maxWidth = dim;
@@ -1066,15 +1026,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (compressedBase64.length <= targetBase64Length) {
                 return compressedBase64;
             }
+            // Try lower quality with smaller dimensions
             compressedBase64 = await compressImageWithParams(file, maxWidth, maxHeight, 0.4);
             if (compressedBase64.length <= targetBase64Length) {
                 return compressedBase64;
             }
         }
         
+        // Last resort: 300px, quality 0.3
         return await compressImageWithParams(file, 300, 300, 0.3);
     }
 
+    /**
+     * Internal helper: compresses image with given dimensions and quality.
+     */
     function compressImageWithParams(file, maxWidth, maxHeight, quality) {
         return new Promise((resolve, reject) => {
             const img = new Image();
@@ -1115,6 +1080,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    /**
+     * Handles profile picture upload: converts to Base64, compresses if file ≥ 1MB,
+     * and saves to Firestore under `profilePicture` field.
+     */
     async function handleProfileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -1131,21 +1100,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         try {
+            // Show loading state
             profileImg.src = '';
             profileImg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>';
             
             let base64;
-            const ONE_MB = 1048576;
+            const ONE_MB = 1048576; // bytes
             
             if (file.size >= ONE_MB) {
                 console.log(`File size: ${(file.size / 1024).toFixed(2)}KB, compressing to ≤200KB...`);
                 base64 = await compressToTargetSize(file, 200);
                 console.log(`Compressed size: ${Math.round(base64.length / 1024)}KB (base64)`);
             } else {
+                // File is under 1MB, just convert to base64 (no compression needed)
                 base64 = await convertImageToBase64(file);
                 console.log(`Original size (base64): ${Math.round(base64.length / 1024)}KB`);
             }
             
+            // Save to Firestore
             const userRef = doc(db, "users", user.uid);
             await updateDoc(userRef, {
                 profilePicture: base64,
@@ -1154,19 +1126,23 @@ document.addEventListener('DOMContentLoaded', () => {
             
             console.log("✅ Profile picture saved to Firestore");
             
+            // Update local state
             if (currentUserData) {
                 currentUserData.profilePicture = base64;
             }
             
+            // Display the image
             profileImg.src = base64;
-            profileImg.innerHTML = '';
+            profileImg.innerHTML = ''; // Clear loading indicator
             profileImg.alt = "Profile Picture";
             
             alert('✅ Profile picture updated successfully!');
             
         } catch (error) {
             console.error('Error uploading profile picture:', error);
-            
+            console.error('Error code:', error.code); // ← helpful for debugging
+
+            // --- FIX 6: Detailed error messages for profile picture permission ---
             let userMessage = '❌ Failed to upload profile picture. ';
             if (error.code === 'permission-denied') {
                 userMessage += 'Permission denied – your Firestore security rules are blocking this update.\n';
@@ -1188,10 +1164,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /**
+     * Loads user profile data into the UI, including the profile picture.
+     */
     async function loadUserProfile(userData) {
         if (userName) {
             const displayName = userData.fullName || userData.email || 'Student';
             userName.textContent = displayName;
+            // --- FIX 7: Show welcome banner after profile loads ---
             showWelcomeBanner(displayName);
         }
         
@@ -1208,6 +1188,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /**
+     * Sets a default avatar using the UI Avatars service.
+     */
     function setDefaultProfileImage() {
         if (!profileImg) return;
         
@@ -1225,6 +1208,7 @@ document.addEventListener('DOMContentLoaded', () => {
         profileImg.innerHTML = '';
     }
 
+    // --- FIX 8: Console hint for Firestore security rules ---
     console.log(`
 📌 To fix profile picture permission, update Firestore rules:
   match /users/{userId} {
@@ -1233,6 +1217,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
     `);
 
+    // Initialize dashboard
     initDashboard();
 });
-

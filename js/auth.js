@@ -218,8 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
         status: "active",
         profilePicture: "",
         createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp(),
-        unlimitedPlan: "false"
+        lastLogin: serverTimestamp()
       };
 
       console.log("User data to save - VERIFY PLAN:", userData.plan);
@@ -368,9 +367,9 @@ document.addEventListener("DOMContentLoaded", () => {
         //   return;
         // }
         
-        // PLAN VERIFICATION: Must be either "free" or undefined (defaults to free)
-        if (plan !== "free") {
-          console.warn("⚠️ User has non-free plan:", plan);
+        // MODIFIED FOR UNLIMITED PLAN: Only warn if plan is not one of the valid types
+        if (plan !== "free" && plan !== "paid" && plan !== "unlimited") {
+          console.warn("⚠️ User has unknown plan:", plan);
         }
 
         // Update last login time

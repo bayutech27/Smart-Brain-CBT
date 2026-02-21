@@ -1476,32 +1476,6 @@ window.deleteStudent = async (userId) => {
     }
 };
 
-  const deleteMath = document.getElementById('deleteMath');
-
-//DELETING ALL MATHS QUESTIONS
-// THIS CODE IS STRICTLY FOR DELETING ANY SELECTED SUBJECT AND IT DELETES ALL
-// IT SHOULD BE USED ONLY WHEN REQUIRED
-//MATHEMATICS CAN BE REPLACED IN THE CODE WITH ANY SUBJECT
-const deleteMathQuestions = async () => {
-  const q = query(collection(db, "questions"), where("subject", "==", "mathematics"));
-  const querySnapshot = await getDocs(q);
-
-  const deletePromises = [];
-
-  querySnapshot.forEach((document) => {
-    deletePromises.push(deleteDoc(doc(db, "questions", document.id)));
-  });
-
-  await Promise.all(deletePromises);
-
-  alert("All mathematics questions deleted successfully!");
-};
-
-
-deleteMath.addEventListener('click', deleteMathQuestions);
-
-
-
 // Initial load of students
 loadStudents();
 
