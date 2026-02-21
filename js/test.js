@@ -34,10 +34,14 @@ const confirmSubmit = document.getElementById('confirmSubmit');
 const answeredCount = document.getElementById('answeredCount');
 const totalQuestionsModal = document.getElementById('totalQuestionsModal');
 const finalScore = document.getElementById('finalScore');
+const scoreLabel = document.getElementById('scoreLabel');
 const correctCount = document.getElementById('correctCount');
 const totalQuestionsCount = document.getElementById('totalQuestionsCount');
 const performanceMessage = document.getElementById('performanceMessage');
 const backToDashboard = document.getElementById('backToDashboard');
+const subjectTabs = document.getElementById('subjectTabs');
+const subjectBreakdown = document.getElementById('subjectBreakdown');
+const subjectBreakdownList = document.getElementById('subjectBreakdownList');
 
 // Test data
 let testData = null;
@@ -45,6 +49,10 @@ let timeRemaining = 0;
 let timerInterval = null;
 let currentQuestionIndex = 0;
 let currentUser = null;
+
+// JAMB Drill specific
+let subjectStartIndices = {}; // subject -> first question index
+let subjectCounts = {}; // subject -> number of questions
 
 // Initialize test page
 document.addEventListener('DOMContentLoaded', () => {
@@ -104,10 +112,26 @@ function initializeTest() {
         return;
     }
     
-    const subjectName = testData.subject ? 
-        testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 
-        'Unknown Subject';
-    testSubject.innerHTML = `<i class="fas fa-book"></i> ${subjectName} - ${testData.examType || 'Test'}`;
+    // Display subject(s) in header
+    if (testData.mode === 'jamb_drill') {
+        const subjectsList = testData.subjects.map(s => s.name).join(' + ');
+        testSubject.innerHTML = `<i class="fas fa-graduation-cap"></i> JAMB Drill: ${subjectsList}`;
+        // Build subject index mapping
+        let idx = 0;
+        testData.subjects.forEach(subj => {
+            subjectStartIndices[subj.value] = idx;
+            const count = subj.count;
+            subjectCounts[subj.value] = count;
+            idx += count;
+        });
+        // Show subject tabs
+        renderSubjectTabs();
+    } else {
+        const subjectName = testData.subject ? 
+            testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 
+            'Unknown Subject';
+        testSubject.innerHTML = `<i class="fas fa-book"></i> Quick Test: ${subjectName} - ${testData.examType || 'Test'}`;
+    }
     
     totalQuestionsSpan.textContent = testData.totalQuestions || testData.questions.length;
     totalQuestionsModal.textContent = testData.totalQuestions || testData.questions.length;
@@ -125,6 +149,54 @@ function initializeTest() {
     loadQuestion(0);
     updateProgressBar();
     updateAnsweredCount();
+}
+
+function renderSubjectTabs() {
+    if (!subjectTabs || testData.mode !== 'jamb_drill') return;
+    subjectTabs.style.display = 'block';
+    subjectTabs.innerHTML = '';
+    
+    testData.subjects.forEach((subj, i) => {
+        const tab = document.createElement('button');
+        tab.className = 'subject-tab';
+        tab.dataset.subject = subj.value;
+        tab.textContent = subj.name;
+        tab.addEventListener('click', () => switchToSubject(subj.value));
+        subjectTabs.appendChild(tab);
+    });
+    
+    // Style the tabs
+    document.querySelectorAll('.subject-tab').forEach((tab, index) => {
+        tab.style.padding = '10px 20px';
+        tab.style.marginRight = '5px';
+        tab.style.border = 'none';
+        tab.style.borderRadius = '20px';
+        tab.style.background = '#e0e0e0';
+        tab.style.cursor = 'pointer';
+        tab.style.fontSize = '14px';
+        tab.style.fontWeight = '500';
+        tab.style.transition = 'all 0.3s';
+    });
+    highlightActiveSubjectTab(testData.questions[0]?.subject);
+}
+
+function highlightActiveSubjectTab(subject) {
+    document.querySelectorAll('.subject-tab').forEach(tab => {
+        if (tab.dataset.subject === subject) {
+            tab.style.background = 'var(--eggplant)';
+            tab.style.color = 'white';
+        } else {
+            tab.style.background = '#e0e0e0';
+            tab.style.color = '#333';
+        }
+    });
+}
+
+function switchToSubject(subject) {
+    if (subjectStartIndices[subject] !== undefined) {
+        loadQuestion(subjectStartIndices[subject]);
+        highlightActiveSubjectTab(subject);
+    }
 }
 
 // =============================================
@@ -203,6 +275,11 @@ function loadQuestion(index) {
     nextBtn.disabled = index === testData.questions.length - 1;
     updateActiveDot(index);
     updateProgressBar();
+    
+    // Highlight subject tab if in JAMB Drill
+    if (testData.mode === 'jamb_drill' && question.subject) {
+        highlightActiveSubjectTab(question.subject);
+    }
 }
 
 // =============================================
@@ -325,17 +402,16 @@ function autoSubmitTest() {
 
 // =============================================
 // SAVE TEST RESULT TO FIRESTORE
-// MATCHES YOUR EXACT DATA STRUCTURE
 // =============================================
-async function saveTestResultToFirestore(score, correctAnswers) {
+async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjectScores = null) {
     try {
         if (!currentUser) {
             throw new Error("User not authenticated");
         }
         
-        const subjectName = testData.subject ? 
-            testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 
-            'Unknown Subject';
+        const subjectName = testData.mode === 'quick' 
+            ? (testData.subject ? testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 'Unknown Subject')
+            : 'JAMB Drill';
         
         // Get user's display name
         let userName = currentUser.displayName || '';
@@ -346,26 +422,29 @@ async function saveTestResultToFirestore(score, correctAnswers) {
             userName = 'Anonymous';
         }
         
-        // Create questions array EXACTLY as in your example
+        // Create questions array
         const questionsData = testData.questions.map((q, index) => ({
             id: q.id || `q-${index}`,
             questionText: q.questionText || "",
             hasQuestionImage: !!q.questionImage,
             correctAnswer: q.correctAnswer || "",
-            userAnswer: testData.userAnswers[index] || null
+            userAnswer: testData.userAnswers[index] || null,
+            subject: q.subject || testData.subject // for jamb drill, each question has subject
         }));
         
-        // Create userAnswers array EXACTLY as in your example
+        // Create userAnswers array
         const userAnswersArray = testData.userAnswers.map(answer => answer || null);
         
-        // Create result data object MATCHING YOUR EXACT STRUCTURE
+        // Build result data
         const resultData = {
             completedAt: serverTimestamp(),
             correctAnswers: correctAnswers,
+            rawScore: rawScore, // number correct
             examType: testData.examType || "Practice",
+            mode: testData.mode || 'quick',
             plan: testData.plan || 'free',
             questions: questionsData,
-            score: score,
+            score: score, // final displayed score (percentage or /400)
             subject: testData.subject || "general",
             subjectName: subjectName,
             testId: testData.testId || `test-${Date.now()}`,
@@ -376,21 +455,22 @@ async function saveTestResultToFirestore(score, correctAnswers) {
             userName: userName
         };
         
-        console.log("Saving test result to Firestore with EXACT structure:", resultData);
+        // For JAMB Drill, store subjects array and subject scores
+        if (testData.mode === 'jamb_drill') {
+            resultData.subjects = testData.subjects;
+            resultData.subjectScores = subjectScores;
+        }
         
-        // SAVE TO FIRESTORE - test_results collection
+        console.log("Saving test result to Firestore:", resultData);
+        
         const docRef = await addDoc(collection(db, "test_results"), resultData);
         
         console.log('✅ Test result saved to Firestore with ID:', docRef.id);
         
-        // Show success message
         showToast('✅ Test result saved successfully!', 'success');
         
-        // =============================================
-        // INCREMENT TEST COUNTS AFTER SUCCESSFUL SAVE
-        // This ensures count only increments when test is actually saved
-        // =============================================
-        if (testData.plan === 'free') {
+        // Increment test counts for free plan only (Quick Test)
+        if (testData.plan === 'free' && testData.mode !== 'jamb_drill') {
             await incrementTestCounts();
         }
         
@@ -398,17 +478,13 @@ async function saveTestResultToFirestore(score, correctAnswers) {
         
     } catch (error) {
         console.error('❌ ERROR SAVING TO FIRESTORE:', error);
-        console.error('Error code:', error.code);
-        console.error('Error message:', error.message);
-        
         showToast(`❌ Failed to save test result: ${error.message || 'Unknown error'}`, 'error');
         throw error;
     }
 }
 
 // =============================================
-// INCREMENT TEST COUNTS IN FIRESTORE
-// Called ONLY after successful test save
+// INCREMENT TEST COUNTS (only for free quick tests)
 // =============================================
 async function incrementTestCounts() {
     try {
@@ -421,7 +497,6 @@ async function incrementTestCounts() {
         
         console.log("Incrementing test counts for user:", currentUser.uid);
         
-        // Increment both weekly and total counts
         await updateDoc(userRef, {
             testsTakenThisWeek: increment(1),
             totalTestsTaken: increment(1),
@@ -429,14 +504,9 @@ async function incrementTestCounts() {
         });
         
         console.log("✅ Test counts incremented successfully");
-        console.log(`testsTakenThisWeek +1, totalTestsTaken +1`);
         
     } catch (error) {
         console.error("❌ Error incrementing test counts:", error);
-        console.error("Error code:", error.code);
-        console.error("Error message:", error.message);
-        
-        // Don't throw - we don't want to prevent showing results if this fails
         showToast('⚠️ Test saved but failed to update test count. Contact support.', 'warning');
     }
 }
@@ -494,7 +564,7 @@ async function submitTest() {
     getResultBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculating Score...';
     
     try {
-        // Calculate score
+        // Calculate raw score
         let correctAnswers = 0;
         testData.questions.forEach((question, index) => {
             const userAnswer = testData.userAnswers[index];
@@ -505,23 +575,61 @@ async function submitTest() {
             }
         });
         
-        const score = Math.round((correctAnswers / testData.questions.length) * 100);
+        let finalDisplayScore;
+        let rawScore = correctAnswers;
+        let subjectScores = null;
         
-        console.log(`Score calculated: ${score}% (${correctAnswers}/${testData.questions.length})`);
+        if (testData.mode === 'jamb_drill') {
+            // Calculate per-subject scores
+            subjectScores = {};
+            testData.subjects.forEach(subj => {
+                subjectScores[subj.value] = { correct: 0, total: subj.count };
+            });
+            
+            testData.questions.forEach((question, index) => {
+                const userAnswer = testData.userAnswers[index];
+                const correctAnswer = question.correctAnswer;
+                if (userAnswer === correctAnswer) {
+                    const subj = question.subject;
+                    if (subj && subjectScores[subj]) {
+                        subjectScores[subj].correct++;
+                    }
+                }
+            });
+            
+            // Scale to 400
+            const totalQuestions = testData.totalQuestions; // 180
+            finalDisplayScore = Math.round((correctAnswers / totalQuestions) * 400);
+            scoreLabel.textContent = '/400 Score';
+        } else {
+            // Quick Test: percentage
+            finalDisplayScore = Math.round((correctAnswers / testData.questions.length) * 100);
+            scoreLabel.textContent = '% Score';
+        }
         
-        // === SAVE TO FIRESTORE - MUST SUCCEED ===
-        await saveTestResultToFirestore(score, correctAnswers);
+        console.log(`Score calculated: ${finalDisplayScore} (${correctAnswers}/${testData.questions.length})`);
+        
+        // Save to Firestore
+        await saveTestResultToFirestore(finalDisplayScore, correctAnswers, correctAnswers, subjectScores);
         
         // Generate performance message
         let message = "";
-        if (score >= 90) message = "Excellent! You're a master of this subject!";
-        else if (score >= 80) message = "Great job! You have a strong understanding.";
-        else if (score >= 70) message = "Good work! Keep practicing to improve.";
-        else if (score >= 60) message = "Not bad! Review the topics you missed.";
-        else message = "Keep practicing! You'll improve with more study.";
+        if (testData.mode === 'jamb_drill') {
+            const percent = (correctAnswers / testData.questions.length) * 100;
+            if (percent >= 90) message = "Excellent! You're on track for a great JAMB score!";
+            else if (percent >= 80) message = "Very good! Keep practicing.";
+            else if (percent >= 70) message = "Good effort. Review your weak areas.";
+            else message = "Keep practicing. You'll improve!";
+        } else {
+            if (finalDisplayScore >= 90) message = "Excellent! You're a master of this subject!";
+            else if (finalDisplayScore >= 80) message = "Great job! You have a strong understanding.";
+            else if (finalDisplayScore >= 70) message = "Good work! Keep practicing to improve.";
+            else if (finalDisplayScore >= 60) message = "Not bad! Review the topics you missed.";
+            else message = "Keep practicing! You'll improve with more study.";
+        }
         
         // Show results
-        showResults(score, correctAnswers, message);
+        showResults(finalDisplayScore, correctAnswers, message, subjectScores);
         
     } catch (error) {
         console.error('Error in submitTest:', error);
@@ -536,7 +644,7 @@ async function submitTest() {
 // =============================================
 // SHOW RESULTS
 // =============================================
-function showResults(score, correctAnswers, message) {
+function showResults(score, correctAnswers, message, subjectScores = null) {
     getResultBtn.classList.remove('btn-loading');
     getResultBtn.innerHTML = '<i class="fas fa-check-circle"></i> Submit Test';
     
@@ -544,6 +652,19 @@ function showResults(score, correctAnswers, message) {
     correctCount.textContent = correctAnswers;
     totalQuestionsCount.textContent = testData.questions.length;
     performanceMessage.textContent = message;
+    
+    // Show subject breakdown for JAMB Drill
+    if (testData.mode === 'jamb_drill' && subjectScores) {
+        subjectBreakdown.style.display = 'block';
+        let html = '';
+        testData.subjects.forEach(subj => {
+            const data = subjectScores[subj.value] || { correct: 0, total: subj.count };
+            html += `<div style="margin: 5px 0;"><strong>${subj.name}:</strong> ${data.correct}/${data.total}</div>`;
+        });
+        subjectBreakdownList.innerHTML = html;
+    } else {
+        subjectBreakdown.style.display = 'none';
+    }
     
     resultsModal.style.display = 'flex';
     addSolutionButton();
@@ -565,7 +686,7 @@ function showResults(score, correctAnswers, message) {
 }
 
 // =============================================
-// SOLUTION BUTTON
+// SOLUTION BUTTON - MODIFIED to allow both 'paid' and 'unlimited'
 // =============================================
 function addSolutionButton() {
     const premiumNotification = document.getElementById('premiumNotification');
@@ -573,7 +694,8 @@ function addSolutionButton() {
         premiumNotification.style.display = 'block';
     }
     
-    const isPremium = testData && testData.plan === 'paid';
+    // Allow access if plan is 'paid' OR 'unlimited'
+    const hasAccess = testData && (testData.plan === 'paid' || testData.plan === 'unlimited');
     
     const modalButtons = document.querySelector('#resultsModal .modal-buttons');
     if (!modalButtons) return;
@@ -586,7 +708,7 @@ function addSolutionButton() {
     solutionBtn.className = 'modal-btn';
     solutionBtn.innerHTML = '<i class="fas fa-lightbulb"></i> View Detailed Solutions';
     
-    if (isPremium) {
+    if (hasAccess) {
         solutionBtn.style.backgroundColor = '#17a2b8';
         solutionBtn.style.cursor = 'pointer';
         solutionBtn.addEventListener('click', () => {
@@ -598,7 +720,7 @@ function addSolutionButton() {
         solutionBtn.style.opacity = '0.7';
         solutionBtn.style.cursor = 'not-allowed';
         solutionBtn.addEventListener('click', () => {
-            alert('Upgrade to Premium to access detailed solutions!');
+            alert('Upgrade to Premium or Unlimited to access detailed solutions!');
         });
     }
     
@@ -611,7 +733,7 @@ function addSolutionButton() {
 }
 
 // =============================================
-// SOLUTIONS MODAL
+// SOLUTIONS MODAL (enhanced to group by subject)
 // =============================================
 function showSolutionsModal(questions, userAnswers) {
     const modal = document.getElementById('solutionModal');
@@ -623,83 +745,34 @@ function showSolutionsModal(questions, userAnswers) {
     const solutionsContainer = document.createElement('div');
     solutionsContainer.className = 'solutions-container';
     
-    questions.forEach((question, index) => {
-        const solutionItem = document.createElement('div');
-        solutionItem.className = 'solution-item';
-        
-        const userAnswer = userAnswers[index];
-        const correctAnswer = question.correctAnswer;
-        const isCorrect = userAnswer === correctAnswer;
-        
-        const hasSolutionText = question.solution && question.solution.trim() !== '';
-        const hasSolutionImage = question.solutionImage;
-        
-        let solutionContent = '';
-        
-        if (hasSolutionText && hasSolutionImage) {
-            solutionContent = `
-                <div class="solution-text-preserved">${processSolutionText(question.solution)}</div>
-                <div class="solution-image-container">
-                    <img src="${question.solutionImage}" alt="Solution image" class="solution-image">
-                </div>
-            `;
-        } else if (hasSolutionText) {
-            solutionContent = `<div class="solution-text-preserved">${processSolutionText(question.solution)}</div>`;
-        } else if (hasSolutionImage) {
-            solutionContent = `
-                <div class="solution-image-container">
-                    <img src="${question.solutionImage}" alt="Solution image" class="solution-image">
-                </div>
-            `;
-        } else {
-            solutionContent = '<div class="solution-text-preserved">No detailed solution available for this question.</div>';
-        }
-        
-        let questionContent = '';
-        const hasQuestionText = question.questionText && question.questionText.trim() !== '';
-        const hasQuestionImage = question.questionImage;
-        
-        if (hasQuestionText && hasQuestionImage) {
-            questionContent = `
-                <p><strong>Question:</strong> ${formatTextForDisplay(question.questionText)}</p>
-                <div class="question-image-container" style="margin: 10px 0;">
-                    <img src="${question.questionImage}" alt="Question image" style="max-width: 200px; max-height: 150px;">
-                </div>
-            `;
-        } else if (hasQuestionText) {
-            questionContent = `<p><strong>Question:</strong> ${formatTextForDisplay(question.questionText)}</p>`;
-        } else if (hasQuestionImage) {
-            questionContent = `
-                <div class="question-image-container" style="margin: 10px 0;">
-                    <img src="${question.questionImage}" alt="Question image" style="max-width: 200px; max-height: 150px;">
-                </div>
-            `;
-        }
-        
-        solutionItem.innerHTML = `
-            <h4><i class="fas fa-question-circle"></i> Question ${index + 1}</h4>
-            ${questionContent}
-            <div class="solution-options">
-                <p><strong>Your Answer:</strong> <span class="user-answer">${userAnswer || 'Not answered'}</span> 
-                <span class="${isCorrect ? 'option-correct' : 'option-incorrect'}">
-                    ${isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                </span></p>
-                <p><strong>Correct Answer:</strong> <span class="correct-answer">${correctAnswer || 'Not specified'}</span></p>
-            </div>
-            <div class="option-explanation">
-                <p><strong>Explanation:</strong></p>
-                ${solutionContent}
-            </div>
-        `;
-        
-        const separator = document.createElement('hr');
-        separator.style.margin = '20px 0';
-        separator.style.border = 'none';
-        separator.style.borderTop = '1px solid #eee';
-        solutionItem.appendChild(separator);
-        
-        solutionsContainer.appendChild(solutionItem);
-    });
+    // If JAMB Drill, group by subject
+    if (testData.mode === 'jamb_drill') {
+        const subjects = testData.subjects;
+        subjects.forEach(subj => {
+            const subjectHeader = document.createElement('h3');
+            subjectHeader.style.color = 'var(--eggplant)';
+            subjectHeader.style.margin = '20px 0 10px';
+            subjectHeader.innerHTML = `<i class="fas fa-book"></i> ${subj.name}`;
+            solutionsContainer.appendChild(subjectHeader);
+            
+            // Filter questions for this subject
+            const subjectQuestions = questions.filter((q, idx) => q.subject === subj.value);
+            subjectQuestions.forEach((question, idxInSubj) => {
+                // Find global index (if needed, but we can just iterate)
+                // For simplicity, we'll just pass the question and its answer
+                const globalIndex = questions.findIndex(q => q.id === question.id);
+                const userAnswer = userAnswers[globalIndex];
+                const solutionItem = createSolutionItem(question, userAnswer, globalIndex + 1);
+                solutionsContainer.appendChild(solutionItem);
+            });
+        });
+    } else {
+        // Quick Test: just list all
+        questions.forEach((question, index) => {
+            const solutionItem = createSolutionItem(question, userAnswers[index], index + 1);
+            solutionsContainer.appendChild(solutionItem);
+        });
+    }
     
     modalBody.appendChild(solutionsContainer);
     
@@ -731,8 +804,85 @@ function showSolutionsModal(questions, userAnswers) {
     };
 }
 
+function createSolutionItem(question, userAnswer, displayNumber) {
+    const solutionItem = document.createElement('div');
+    solutionItem.className = 'solution-item';
+    
+    const correctAnswer = question.correctAnswer;
+    const isCorrect = userAnswer === correctAnswer;
+    
+    const hasSolutionText = question.solution && question.solution.trim() !== '';
+    const hasSolutionImage = question.solutionImage;
+    
+    let solutionContent = '';
+    
+    if (hasSolutionText && hasSolutionImage) {
+        solutionContent = `
+            <div class="solution-text-preserved">${processSolutionText(question.solution)}</div>
+            <div class="solution-image-container">
+                <img src="${question.solutionImage}" alt="Solution image" class="solution-image">
+            </div>
+        `;
+    } else if (hasSolutionText) {
+        solutionContent = `<div class="solution-text-preserved">${processSolutionText(question.solution)}</div>`;
+    } else if (hasSolutionImage) {
+        solutionContent = `
+            <div class="solution-image-container">
+                <img src="${question.solutionImage}" alt="Solution image" class="solution-image">
+            </div>
+        `;
+    } else {
+        solutionContent = '<div class="solution-text-preserved">No detailed solution available for this question.</div>';
+    }
+    
+    let questionContent = '';
+    const hasQuestionText = question.questionText && question.questionText.trim() !== '';
+    const hasQuestionImage = question.questionImage;
+    
+    if (hasQuestionText && hasQuestionImage) {
+        questionContent = `
+            <p><strong>Question:</strong> ${formatTextForDisplay(question.questionText)}</p>
+            <div class="question-image-container" style="margin: 10px 0;">
+                <img src="${question.questionImage}" alt="Question image" style="max-width: 200px; max-height: 150px;">
+            </div>
+        `;
+    } else if (hasQuestionText) {
+        questionContent = `<p><strong>Question:</strong> ${formatTextForDisplay(question.questionText)}</p>`;
+    } else if (hasQuestionImage) {
+        questionContent = `
+            <div class="question-image-container" style="margin: 10px 0;">
+                <img src="${question.questionImage}" alt="Question image" style="max-width: 200px; max-height: 150px;">
+            </div>
+        `;
+    }
+    
+    solutionItem.innerHTML = `
+        <h4><i class="fas fa-question-circle"></i> Question ${displayNumber}</h4>
+        ${questionContent}
+        <div class="solution-options">
+            <p><strong>Your Answer:</strong> <span class="user-answer">${userAnswer || 'Not answered'}</span> 
+            <span class="${isCorrect ? 'option-correct' : 'option-incorrect'}">
+                ${isCorrect ? '✓ Correct' : '✗ Incorrect'}
+            </span></p>
+            <p><strong>Correct Answer:</strong> <span class="correct-answer">${correctAnswer || 'Not specified'}</span></p>
+        </div>
+        <div class="option-explanation">
+            <p><strong>Explanation:</strong></p>
+            ${solutionContent}
+        </div>
+    `;
+    
+    const separator = document.createElement('hr');
+    separator.style.margin = '20px 0';
+    separator.style.border = 'none';
+    separator.style.borderTop = '1px solid #eee';
+    solutionItem.appendChild(separator);
+    
+    return solutionItem;
+}
+
 // =============================================
-// TEXT FORMATTING
+// TEXT FORMATTING (unchanged)
 // =============================================
 function processSolutionText(text) {
     if (!text) return '';
@@ -769,7 +919,7 @@ function goToDashboard() {
 }
 
 // =============================================
-// KEYBOARD NAVIGATION
+// KEYBOARD NAVIGATION (unchanged)
 // =============================================
 function handleKeyboardNavigation(e) {
     if (submitModal.style.display === 'flex' || resultsModal.style.display === 'flex') {

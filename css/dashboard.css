@@ -875,6 +875,168 @@
   color: var(--eggplant);
 }
 
+
+
+/* Additional styles for JAMB Drill section */
+.checkbox-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.checkbox-group div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--eggplant);
+}
+
+.checkbox-group label {
+  font-size: 14px;
+  color: var(--dark);
+  cursor: pointer;
+}
+
+.checkbox-group input:disabled + label {
+  color: #999;
+  cursor: not-allowed;
+}
+
+#subjectSelectionHint {
+  font-size: 13px;
+  margin-top: 8px;
+  transition: color 0.3s;
+}
+
+#jambDrillPremiumNotice {
+  background: #f8f9fa;
+  border-left: 4px solid #9C27B0;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+#jambDrillPremiumNotice a {
+  color: #9C27B0;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#jambDrillPremiumNotice a:hover {
+  text-decoration: underline;
+}
+
+/* Recent tests lists */
+.recent-tests {
+  margin-bottom: 30px;
+}
+
+.tests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+@media (min-width: 768px) {
+  .tests-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .tests-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.test-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px;
+  background: var(--light-gray);
+  border-radius: var(--radius-sm);
+  transition: all 0.3s ease;
+  border-left: 4px solid transparent;
+  cursor: pointer;
+}
+
+.test-item:hover {
+  background: var(--white);
+  box-shadow: var(--shadow-hover);
+  transform: translateX(5px);
+  border-left-color: var(--eggplant);
+}
+
+.test-item:nth-child(1) { border-left-color: var(--eggplant); }
+.test-item:nth-child(2) { border-left-color: var(--secondary); }
+.test-item:nth-child(3) { border-left-color: var(--accent); }
+
+.test-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.test-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--eggplant), var(--purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.test-item:hover .test-icon {
+  transform: rotate(10deg) scale(1.1);
+}
+
+.test-icon i {
+  color: var(--white);
+  font-size: 20px;
+}
+
+.test-details h4 {
+  font-size: 16px;
+  color: var(--dark);
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.test-details p {
+  font-size: 14px;
+  color: var(--gray);
+  margin: 0;
+}
+
+.test-score {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--dark);
+  transition: all 0.3s ease;
+}
+
+.test-item:hover .test-score {
+  color: var(--eggplant);
+}
+
+
+
+
+
 /* Dashboard Footer */
 .dashboard-footer {
   background: var(--white);

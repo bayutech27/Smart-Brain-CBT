@@ -554,6 +554,74 @@
   font-size: 14px !important;
 }
 
+
+/* Subject Tabs */
+.subject-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 5px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.subject-tab {
+  padding: 8px 16px;
+  background: #f0f0f0;
+  border: none;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.subject-tab:hover {
+  background: #e0e0e0;
+  transform: translateY(-2px);
+}
+
+.subject-tab.active {
+  background: var(--eggplant);
+  color: white;
+}
+
+@media (max-width: 480px) {
+  .subject-tabs {
+    gap: 5px;
+  }
+  .subject-tab {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Subject Breakdown in Results */
+#subjectBreakdown {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 15px 0;
+  border-left: 4px solid var(--eggplant);
+}
+
+#subjectBreakdown strong {
+  color: var(--eggplant);
+}
+
+#subjectBreakdownList div {
+  padding: 5px 0;
+  border-bottom: 1px dashed #ddd;
+}
+
+#subjectBreakdownList div:last-child {
+  border-bottom: none;
+}
+
+
+
 /* Tablet Styles (768px and up) */
 @media (min-width: 768px) {
   .test-page {

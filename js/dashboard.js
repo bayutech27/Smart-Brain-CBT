@@ -22,13 +22,12 @@ import {
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Elements
-    const startTestBtn = document.getElementById('startTestBtn');
+    // DOM Elements - Existing Quick Test
+    const startQuickTestBtn = document.getElementById('startQuickTestBtn');
     const classSelect = document.getElementById('classSelect');
     const subjectSelect = document.getElementById('subjectSelect');
     const logoutBtn = document.getElementById('logoutBtn');
     const userName = document.getElementById('userName');
-    const practiceForm = document.getElementById('practiceForm');
     const profileUpload = document.getElementById('profileUpload');
     const profileImg = document.getElementById('profileImg');
     const premiumBanner = document.getElementById('premiumBanner');
@@ -42,16 +41,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const planStatusCard = document.getElementById('planStatusCard');
     const planIcon = document.getElementById('planIcon');
 
+    // JAMB Drill elements
+    const jambDrillSection = document.getElementById('jambDrillSection');
+    const jambDrillPremiumNotice = document.getElementById('jambDrillPremiumNotice');
+    const additionalSubjectsDiv = document.getElementById('additionalSubjects');
+    const startJambDrillBtn = document.getElementById('startJambDrillBtn');
+    const upgradeFromJamb = document.getElementById('upgradeFromJamb');
+    const viewAllQuick = document.getElementById('viewAllQuick');
+    const viewAllJamb = document.getElementById('viewAllJamb');
+
     // Dashboard stats elements
     const completedTests = document.getElementById('completedTests');
     const averageScore = document.getElementById('averageScore');
     const performanceMessage = document.getElementById('performanceMessage');
-    const testsList = document.getElementById('testsList');
-    const viewAllResults = document.getElementById('viewAllResults');
+    const quickTestsList = document.getElementById('quickTestsList');
+    const jambDrillTestsList = document.getElementById('jambDrillTestsList');
 
     // Configuration
     const QUESTIONS_TO_FETCH = 20;
-    const RECENT_TESTS_LIMIT = 6;
     const FREE_PLAN_WEEKLY_LIMIT = 3;
     const FREE_PLAN_SUBJECTS = ['mathematics', 'english'];
     const PREMIUM_PLAN_DURATION_DAYS = 30;
@@ -130,12 +137,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        if (practiceForm) {
-            practiceForm.addEventListener('submit', (e) => e.preventDefault());
+        // Quick Test listeners
+        if (startQuickTestBtn) {
+            startQuickTestBtn.addEventListener('click', startQuickTest);
         }
         
-        if (startTestBtn) {
-            startTestBtn.addEventListener('click', startPracticeTest);
+        // JAMB Drill listeners
+        if (startJambDrillBtn) {
+            startJambDrillBtn.addEventListener('click', startJambDrill);
+        }
+        if (upgradeFromJamb) {
+            upgradeFromJamb.addEventListener('click', (e) => {
+                e.preventDefault();
+                upgradeToPremium();
+            });
         }
         
         if (logoutBtn) {
@@ -151,8 +166,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        if (viewAllResults) {
-            viewAllResults.addEventListener('click', (e) => {
+        if (viewAllQuick) {
+            viewAllQuick.addEventListener('click', (e) => {
+                e.preventDefault();
+                alert('Complete results page coming soon!');
+            });
+        }
+        if (viewAllJamb) {
+            viewAllJamb.addEventListener('click', (e) => {
                 e.preventDefault();
                 alert('Complete results page coming soon!');
             });
@@ -392,10 +413,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 updateUIForPlan();
                 showPremiumBanner();
-                setupSubjectDropdown();
+                setupSubjectDropdown(); // for quick test
+                setupJambDrillSubjects(); // re-populate with premium subjects
             }
             
-            alert(`🎉 Congratulations! You are now a Premium member!\n\n✅ Unlimited tests for all subjects\n✅ Detailed solutions unlocked\n✅ Premium status for 30 days`);
+            alert(`🎉 Congratulations! You are now a Premium member!\n\n✅ Unlimited tests for all subjects\n✅ Detailed solutions unlocked\n✅ JAMB Drill access\n✅ Premium status for 30 days`);
             
             if (upgradeBtn) {
                 upgradeBtn.innerHTML = '<i class="fas fa-rocket"></i> UPGRADE NOW';
@@ -446,7 +468,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 setupRealTimeStats(userId);
                 updateUIForPlan();
                 showPremiumBanner();
-                setupSubjectDropdown();
+                setupSubjectDropdown(); // quick test subjects
+                setupJambDrillSubjects(); // populate subject checkboxes
+                updateJambDrillVisibility(); // show/hide based on plan
                 
             } else {
                 await createDefaultUserProfile(userId);
@@ -504,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
         unsubscribeStats = onSnapshot(q, (snapshot) => {
             console.log("Loading dashboard stats from Firestore:", snapshot.size, "tests found");
             updateStatistics(snapshot);
-            updateRecentTests(snapshot);
+            updateRecentTestsSeparate(snapshot);
         }, (error) => {
             console.error("Error loading stats from Firestore:", error);
         });
@@ -523,9 +547,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         snapshot.forEach((doc) => {
             const testData = doc.data();
-            if (testData.score !== undefined && testData.score !== null) {
+            // For JAMB Drill, score is scaled over 400, but for average we still use percentage?
+            // We'll keep average as percentage for Quick Tests; for JAMB Drill, we convert to percentage for average consistency.
+            let score = testData.score;
+            if (testData.mode === 'jamb_drill' && testData.totalQuestions) {
+                // convert scaled score back to percentage for averaging
+                score = (testData.rawScore / testData.totalQuestions) * 100;
+            }
+            if (score !== undefined && score !== null) {
                 totalTests++;
-                totalScore += testData.score;
+                totalScore += score;
             }
         });
         
@@ -549,70 +580,86 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateRecentTests(snapshot) {
-        if (!testsList) return;
+    function updateRecentTestsSeparate(snapshot) {
+        if (!quickTestsList || !jambDrillTestsList) return;
         
-        if (snapshot.empty) {
-            testsList.innerHTML = `
+        const quickTests = [];
+        const jambTests = [];
+        
+        snapshot.forEach((doc) => {
+            const test = doc.data();
+            test.id = doc.id;
+            if (test.mode === 'jamb_drill') {
+                jambTests.push(test);
+            } else {
+                // treat missing mode as quick
+                quickTests.push(test);
+            }
+        });
+        
+        renderTestList(quickTestsList, quickTests, 'quick');
+        renderTestList(jambDrillTestsList, jambTests, 'jamb');
+    }
+
+    function renderTestList(container, tests, type) {
+        if (!container) return;
+        
+        if (tests.length === 0) {
+            container.innerHTML = `
                 <div class="test-item placeholder">
                     <div class="test-info">
                         <div class="test-icon">
                             <i class="fas fa-hourglass-half"></i>
                         </div>
                         <div class="test-details">
-                            <h4>No tests yet</h4>
-                            <p>Take your first practice test!</p>
+                            <h4>No ${type === 'quick' ? 'Quick Tests' : 'JAMB Drills'} yet</h4>
+                            <p>Take your first ${type === 'quick' ? 'Quick Test' : 'JAMB Drill'}!</p>
                         </div>
                     </div>
-                    <div class="test-score">0<span class="test-percentage">%</span></div>
+                    <div class="test-score">0${type === 'quick' ? '<span class="test-percentage">%</span>' : '<span class="test-percentage">/400</span>'}</div>
                 </div>
             `;
             return;
         }
         
-        testsList.innerHTML = '';
-        
-        let count = 0;
-        snapshot.forEach((doc) => {
-            if (count < RECENT_TESTS_LIMIT) {
-                const testData = doc.data();
-                const testItem = createTestItem(testData);
-                testsList.appendChild(testItem);
-                count++;
+        container.innerHTML = '';
+        tests.slice(0, 6).forEach(test => {
+            const testItem = document.createElement('div');
+            testItem.className = 'test-item';
+            
+            let timeAgo = 'Recently';
+            if (test.completedAt) {
+                const completedDate = test.completedAt.toDate ? 
+                    test.completedAt.toDate() : 
+                    new Date(test.completedAt);
+                timeAgo = formatTimeAgo(completedDate);
             }
+            
+            let subjectDisplay = test.subjectName || test.subject || 'Test';
+            if (test.mode === 'jamb_drill' && test.subjects) {
+                subjectDisplay = test.subjects.map(s => s.name).join(', ');
+            }
+            
+            const icon = test.mode === 'jamb_drill' ? 'graduation-cap' : 'book';
+            const scoreDisplay = test.mode === 'jamb_drill' 
+                ? `${test.score || 0}<span class="test-percentage">/400</span>`
+                : `${test.score || 0}<span class="test-percentage">%</span>`;
+            
+            testItem.innerHTML = `
+                <div class="test-info">
+                    <div class="test-icon">
+                        <i class="fas fa-${icon}"></i>
+                    </div>
+                    <div class="test-details">
+                        <h4>${subjectDisplay}</h4>
+                        <p>${timeAgo}</p>
+                    </div>
+                </div>
+                <div class="test-score">${scoreDisplay}</div>
+            `;
+            
+            container.appendChild(testItem);
         });
-    }
-
-    function createTestItem(testData) {
-        const testItem = document.createElement('div');
-        testItem.className = 'test-item';
-        
-        let timeAgo = 'Recently';
-        if (testData.completedAt) {
-            const completedDate = testData.completedAt.toDate ? 
-                testData.completedAt.toDate() : 
-                new Date(testData.completedAt);
-            timeAgo = formatTimeAgo(completedDate);
-        }
-        
-        const subjectIcon = getSubjectIcon(testData.subject);
-        const subjectName = testData.subjectName || 
-            (testData.subject ? testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 'Test');
-        
-        testItem.innerHTML = `
-            <div class="test-info">
-                <div class="test-icon">
-                    <i class="fas fa-${subjectIcon}"></i>
-                </div>
-                <div class="test-details">
-                    <h4>${subjectName}</h4>
-                    <p>${timeAgo}</p>
-                </div>
-            </div>
-            <div class="test-score">${testData.score || 0}<span class="test-percentage">%</span></div>
-        `;
-        
-        return testItem;
     }
 
     function formatTimeAgo(date) {
@@ -627,23 +674,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (diffHours < 24) return `${diffHours} hours ago`;
         if (diffDays < 7) return `${diffDays} days ago`;
         return date.toLocaleDateString();
-    }
-
-    function getSubjectIcon(subject) {
-        const iconMap = {
-            'mathematics': 'calculator',
-            'english': 'book',
-            'physics': 'atom',
-            'chemistry': 'flask',
-            'biology': 'dna',
-            'accounting': 'calculator',
-            'literature': 'book-open',
-            'government': 'landmark',
-            'commerce': 'store',
-            'economics': 'chart-line',
-            'crk': 'church'
-        };
-        return iconMap[subject] || 'book';
     }
 
     // =============================================
@@ -784,9 +814,81 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // TEST LIMIT VALIDATION
+    // JAMB DRILL SUBJECT CHECKBOXES
     // =============================================
-    async function validateTestStart() {
+    function setupJambDrillSubjects() {
+        if (!additionalSubjectsDiv) return;
+        
+        const isPremium = currentUserData?.plan !== 'free';
+        additionalSubjectsDiv.innerHTML = '';
+        
+        ALL_SUBJECTS.forEach(subject => {
+            if (subject.value === 'english') return; // English already handled separately
+            
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'flex';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.gap = '8px';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = subject.value;
+            checkbox.id = `subj_${subject.value}`;
+            checkbox.className = 'jamb-subject-checkbox';
+            
+            // For free users, only mathematics is selectable; others disabled.
+            if (!isPremium && subject.value !== 'mathematics') {
+                checkbox.disabled = true;
+                wrapper.style.opacity = '0.5';
+            }
+            
+            const label = document.createElement('label');
+            label.htmlFor = `subj_${subject.value}`;
+            label.textContent = subject.name + ' (40 questions)';
+            label.style.margin = '0';
+            label.style.fontWeight = '400';
+            
+            wrapper.appendChild(checkbox);
+            wrapper.appendChild(label);
+            additionalSubjectsDiv.appendChild(wrapper);
+        });
+        
+        // Add event listeners to validate selection count
+        document.querySelectorAll('.jamb-subject-checkbox').forEach(cb => {
+            cb.addEventListener('change', validateJambSubjectSelection);
+        });
+    }
+
+    function validateJambSubjectSelection() {
+        const checkboxes = document.querySelectorAll('.jamb-subject-checkbox:checked');
+        const hint = document.getElementById('subjectSelectionHint');
+        if (checkboxes.length === 3) {
+            hint.innerHTML = '✅ 3 subjects selected. Ready to start.';
+            hint.style.color = '#28a745';
+        } else {
+            hint.innerHTML = `Select exactly 3 subjects (currently ${checkboxes.length} selected)`;
+            hint.style.color = '#dc3545';
+        }
+    }
+
+    function updateJambDrillVisibility() {
+        if (!jambDrillSection || !jambDrillPremiumNotice) return;
+        const isPremium = currentUserData?.plan !== 'free';
+        if (isPremium) {
+            jambDrillPremiumNotice.style.display = 'none';
+            jambDrillSection.style.display = 'block';
+        } else {
+            jambDrillPremiumNotice.style.display = 'block';
+            jambDrillSection.style.display = 'block'; // keep visible but notice shown
+            // Disable start button
+            if (startJambDrillBtn) startJambDrillBtn.disabled = true;
+        }
+    }
+
+    // =============================================
+    // TEST LIMIT VALIDATION (for Quick Test)
+    // =============================================
+    async function validateQuickTestStart() {
         if (!currentUserData) return { valid: false, message: "User data not loaded" };
         
         const isFreePlan = currentUserData.plan === 'free';
@@ -831,10 +933,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // START PRACTICE TEST - COUNT INCREMENT REMOVED
-    // Count now increments in test.js after successful save
+    // START QUICK TEST
     // =============================================
-    async function startPracticeTest() {
+    async function startQuickTest() {
         const selectedExam = classSelect.value;
         const selectedSubject = subjectSelect.value;
         
@@ -843,20 +944,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        const validation = await validateTestStart();
+        const validation = await validateQuickTestStart();
         if (!validation.valid) {
             alert(validation.message);
             return;
         }
         
         try {
-            showLoadingState(true);
+            showLoadingState(true, startQuickTestBtn);
             
             const firestoreExamType = EXAM_TYPE_MAP[selectedExam] || selectedExam;
             const allQuestions = await fetchQuestions(firestoreExamType, selectedSubject);
             
             if (allQuestions.length < QUESTIONS_TO_FETCH) {
-                showLoadingState(false);
+                showLoadingState(false, startQuickTestBtn);
                 alert(`Only ${allQuestions.length} questions available for "${selectedSubject}".`);
                 return;
             }
@@ -868,11 +969,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return total + (parseInt(q.timeLimit) || 120);
             }, 0);
             
-            // ⚠️ COUNT INCREMENT REMOVED FROM HERE
-            // Test count will be incremented in test.js after successful Firestore save
-            
             const testData = {
                 testId: generateTestId(),
+                mode: 'quick',
                 examType: firestoreExamType,
                 subject: selectedSubject,
                 questions: selectedQuestions,
@@ -889,8 +988,93 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } catch (error) {
             console.error('Error starting test:', error);
-            showLoadingState(false);
+            showLoadingState(false, startQuickTestBtn);
             alert(`❌ Error starting test: ${error.message || 'Please try again.'}`);
+        }
+    }
+
+    // =============================================
+    // START JAMB DRILL
+    // =============================================
+    async function startJambDrill() {
+        // Check premium
+        if (currentUserData?.plan === 'free') {
+            alert('❌ JAMB Drill is a Premium feature. Please upgrade to access.');
+            return;
+        }
+
+        // Validate subject selection: English always selected, plus 3 others
+        const selectedCheckboxes = document.querySelectorAll('.jamb-subject-checkbox:checked');
+        if (selectedCheckboxes.length !== 3) {
+            alert('❌ Please select exactly 3 additional subjects.');
+            return;
+        }
+
+        const subjects = [
+            { value: 'english', name: 'English Language', count: 60 },
+            ...Array.from(selectedCheckboxes).map(cb => {
+                const subject = ALL_SUBJECTS.find(s => s.value === cb.value);
+                return { value: cb.value, name: subject.name, count: 40 };
+            })
+        ];
+
+        try {
+            showLoadingState(true, startJambDrillBtn);
+
+            // Fetch questions for each subject
+            const allQuestions = [];
+            const subjectQuestionMap = {};
+
+            for (let subj of subjects) {
+                const examType = 'JAMB'; // JAMB Drill only for JAMB
+                const questions = await fetchQuestions(examType, subj.value);
+                if (questions.length < subj.count) {
+                    showLoadingState(false, startJambDrillBtn);
+                    alert(`Not enough questions for ${subj.name}. Available: ${questions.length}, needed: ${subj.count}.`);
+                    return;
+                }
+                // Randomly select required count
+                const shuffled = shuffleArray(questions);
+                const selected = shuffled.slice(0, subj.count).map(q => ({
+                    ...q,
+                    subject: subj.value, // attach subject to each question
+                    subjectName: subj.name
+                }));
+                subjectQuestionMap[subj.value] = selected;
+                allQuestions.push(...selected);
+            }
+
+            // Shuffle the combined questions? Better to keep grouped by subject for UI.
+            // We'll keep them in order: English first, then the other three in selection order.
+            // But we need to preserve grouping for subject tabs.
+            // We'll just concatenate in the order of subjects array.
+
+            const finalQuestions = [];
+            subjects.forEach(subj => {
+                finalQuestions.push(...subjectQuestionMap[subj.value]);
+            });
+
+            const testData = {
+                testId: generateTestId(),
+                mode: 'jamb_drill',
+                examType: 'JAMB',
+                subjects: subjects,
+                questions: finalQuestions,
+                totalQuestions: finalQuestions.length, // 180
+                totalTime: 120 * 60, // 120 minutes in seconds
+                startTime: new Date().toISOString(),
+                userId: auth.currentUser.uid,
+                userAnswers: Array(finalQuestions.length).fill(null),
+                plan: currentUserData.plan || 'paid' // should be paid
+            };
+
+            sessionStorage.setItem('currentTest', JSON.stringify(testData));
+            window.location.href = 'test.html';
+
+        } catch (error) {
+            console.error('Error starting JAMB Drill:', error);
+            showLoadingState(false, startJambDrillBtn);
+            alert(`❌ Error starting JAMB Drill: ${error.message || 'Please try again.'}`);
         }
     }
 
@@ -957,25 +1141,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
-    function showLoadingState(show) {
-        if (!startTestBtn) return;
-        
+    function showLoadingState(show, button) {
+        if (!button) return;
         if (show) {
-            startTestBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading Questions...';
-            startTestBtn.disabled = true;
+            button.dataset.originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+            button.disabled = true;
         } else {
-            startTestBtn.innerHTML = '<i class="fas fa-play-circle"></i> Start Practice Test';
-            startTestBtn.disabled = false;
+            button.innerHTML = button.dataset.originalText || button.innerHTML;
+            button.disabled = false;
         }
     }
 
     // =============================================
-    // 🖼️ PROFILE PICTURE HANDLING - IMPROVED
+    // 🖼️ PROFILE PICTURE HANDLING - IMPROVED (unchanged)
     // =============================================
-    
-    /**
-     * Converts a File object to a Base64 data URL.
-     */
     function convertImageToBase64(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -985,30 +1165,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * Compresses an image to a target maximum size (in KB) by adjusting
-     * dimensions and JPEG quality.
-     * @param {File} file - Original image file.
-     * @param {number} targetSizeKB - Desired maximum file size in kilobytes.
-     * @returns {Promise<string>} - Base64 data URL of compressed image.
-     */
     async function compressToTargetSize(file, targetSizeKB = 200) {
-        // Convert target size to bytes, accounting for base64 overhead (+33%)
         const targetBase64Length = targetSizeKB * 1024 * 1.33;
         
-        // Start with reasonable max dimensions
         let maxWidth = 800;
         let maxHeight = 800;
         let quality = 0.8;
         
         let compressedBase64 = await compressImageWithParams(file, maxWidth, maxHeight, quality);
         
-        // If already under target, return it
         if (compressedBase64.length <= targetBase64Length) {
             return compressedBase64;
         }
         
-        // Reduce quality step by step
         const qualitySteps = [0.7, 0.6, 0.5, 0.4, 0.3, 0.2];
         for (let q of qualitySteps) {
             compressedBase64 = await compressImageWithParams(file, maxWidth, maxHeight, q);
@@ -1017,7 +1186,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // If still too large, reduce dimensions
         const dimensionSteps = [600, 500, 400, 300];
         for (let dim of dimensionSteps) {
             maxWidth = dim;
@@ -1026,20 +1194,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (compressedBase64.length <= targetBase64Length) {
                 return compressedBase64;
             }
-            // Try lower quality with smaller dimensions
             compressedBase64 = await compressImageWithParams(file, maxWidth, maxHeight, 0.4);
             if (compressedBase64.length <= targetBase64Length) {
                 return compressedBase64;
             }
         }
         
-        // Last resort: 300px, quality 0.3
         return await compressImageWithParams(file, 300, 300, 0.3);
     }
 
-    /**
-     * Internal helper: compresses image with given dimensions and quality.
-     */
     function compressImageWithParams(file, maxWidth, maxHeight, quality) {
         return new Promise((resolve, reject) => {
             const img = new Image();
@@ -1080,10 +1243,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * Handles profile picture upload: converts to Base64, compresses if file ≥ 1MB,
-     * and saves to Firestore under `profilePicture` field.
-     */
     async function handleProfileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -1100,24 +1259,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         try {
-            // Show loading state
             profileImg.src = '';
             profileImg.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>';
             
             let base64;
-            const ONE_MB = 1048576; // bytes
+            const ONE_MB = 1048576;
             
             if (file.size >= ONE_MB) {
                 console.log(`File size: ${(file.size / 1024).toFixed(2)}KB, compressing to ≤200KB...`);
                 base64 = await compressToTargetSize(file, 200);
                 console.log(`Compressed size: ${Math.round(base64.length / 1024)}KB (base64)`);
             } else {
-                // File is under 1MB, just convert to base64 (no compression needed)
                 base64 = await convertImageToBase64(file);
                 console.log(`Original size (base64): ${Math.round(base64.length / 1024)}KB`);
             }
             
-            // Save to Firestore
             const userRef = doc(db, "users", user.uid);
             await updateDoc(userRef, {
                 profilePicture: base64,
@@ -1126,23 +1282,18 @@ document.addEventListener('DOMContentLoaded', () => {
             
             console.log("✅ Profile picture saved to Firestore");
             
-            // Update local state
             if (currentUserData) {
                 currentUserData.profilePicture = base64;
             }
             
-            // Display the image
             profileImg.src = base64;
-            profileImg.innerHTML = ''; // Clear loading indicator
+            profileImg.innerHTML = '';
             profileImg.alt = "Profile Picture";
             
             alert('✅ Profile picture updated successfully!');
             
         } catch (error) {
             console.error('Error uploading profile picture:', error);
-            console.error('Error code:', error.code); // ← helpful for debugging
-
-            // --- FIX 6: Detailed error messages for profile picture permission ---
             let userMessage = '❌ Failed to upload profile picture. ';
             if (error.code === 'permission-denied') {
                 userMessage += 'Permission denied – your Firestore security rules are blocking this update.\n';
@@ -1164,14 +1315,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /**
-     * Loads user profile data into the UI, including the profile picture.
-     */
     async function loadUserProfile(userData) {
         if (userName) {
             const displayName = userData.fullName || userData.email || 'Student';
             userName.textContent = displayName;
-            // --- FIX 7: Show welcome banner after profile loads ---
             showWelcomeBanner(displayName);
         }
         
@@ -1188,9 +1335,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /**
-     * Sets a default avatar using the UI Avatars service.
-     */
     function setDefaultProfileImage() {
         if (!profileImg) return;
         
@@ -1208,7 +1352,6 @@ document.addEventListener('DOMContentLoaded', () => {
         profileImg.innerHTML = '';
     }
 
-    // --- FIX 8: Console hint for Firestore security rules ---
     console.log(`
 📌 To fix profile picture permission, update Firestore rules:
   match /users/{userId} {

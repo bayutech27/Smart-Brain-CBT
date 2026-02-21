@@ -1281,59 +1281,89 @@ loadQuestions();
 
 // ================= STUDENT MANAGEMENT =================
 
-// NEW: Function to change student plan
-window.changeStudentPlan = async (userId, currentPlan) => {
-    const newPlan = currentPlan === "free" ? "paid" : "free";
-    const action = newPlan === "paid" ? "upgrade to paid" : "downgrade to free";
-    
-    if (!confirm(`Are you sure you want to ${action} this student?`)) return;
-    
+/**
+ * NEW: Reusable function to update a student's plan.
+ * @param {string} userId - The Firestore user document ID.
+ * @param {string} newPlan - The new plan value: 'free', 'paid', or 'unlimited'.
+ */
+window.updateUserPlan = async (userId, newPlan) => {
+    // Confirm action
+    const planDisplay = newPlan === 'free' ? 'Free' : (newPlan === 'paid' ? 'Paid' : 'Unlimited');
+    if (!confirm(`Are you sure you want to set this student's plan to ${planDisplay}?`)) return;
+
     try {
         const updateData = {
             plan: newPlan,
-            subscriptionStatus: newPlan === "paid" ? "paid_tier" : "free_tier",
-            subscriptionDate: serverTimestamp(),
             lastUpdated: serverTimestamp()
         };
-        
+
+        // If setting to paid, also update subscriptionDate (optional)
+        if (newPlan === 'paid') {
+            updateData.subscriptionDate = serverTimestamp();
+            updateData.subscriptionStatus = 'paid_tier';
+        } else if (newPlan === 'free') {
+            updateData.subscriptionDate = null; // optional
+            updateData.subscriptionStatus = 'free_tier';
+        } else if (newPlan === 'unlimited') {
+            updateData.subscriptionStatus = 'unlimited'; // custom status
+            // Optionally set an unlimited flag
+        }
+
         await updateDoc(doc(db, "users", userId), updateData);
-        
+
         // Show success feedback
         const feedbackDiv = document.createElement("div");
         feedbackDiv.className = `feedback-message success`;
-        feedbackDiv.textContent = `✅ Student ${action} successfully`;
+        feedbackDiv.textContent = `✅ Student plan updated to ${planDisplay} successfully`;
         feedbackDiv.style.position = "fixed";
         feedbackDiv.style.top = "20px";
         feedbackDiv.style.right = "20px";
         feedbackDiv.style.zIndex = "1000";
         document.body.appendChild(feedbackDiv);
-        
+
         setTimeout(() => feedbackDiv.remove(), 3000);
-        
+
         // Reload students to reflect changes
         loadStudents();
     } catch (error) {
-        console.error(`Error changing student plan:`, error);
-        
+        console.error(`Error updating student plan:`, error);
+
         const feedbackDiv = document.createElement("div");
         feedbackDiv.className = `feedback-message error`;
-        feedbackDiv.textContent = `❌ Failed to change student plan`;
+        feedbackDiv.textContent = `❌ Failed to update student plan`;
         feedbackDiv.style.position = "fixed";
         feedbackDiv.style.top = "20px";
         feedbackDiv.style.right = "20px";
         feedbackDiv.style.zIndex = "1000";
         document.body.appendChild(feedbackDiv);
-        
+
         setTimeout(() => feedbackDiv.remove(), 3000);
     }
 };
+
+/**
+ * NEW: Get test count for a user by querying test_results collection.
+ * @param {string} userId - The user ID.
+ * @returns {Promise<number>} The number of test results for that user.
+ */
+async function getTestCount(userId) {
+    try {
+        const q = query(collection(db, "test_results"), where("userId", "==", userId));
+        const snapshot = await getDocs(q);
+        return snapshot.size;
+    } catch (error) {
+        console.error(`Error fetching test count for user ${userId}:`, error);
+        return 0; // fallback
+    }
+}
 
 // Load student data
 async function loadStudents() {
     try {
         const snap = await getDocs(collection(db, "users"));
         let freeCount = 0;
-        let premiumCount = 0;
+        let premiumCount = 0; // paid + unlimited? We'll count paid separately, unlimited separately maybe.
+        let unlimitedCount = 0;
 
         studentTableBody.innerHTML = "";
 
@@ -1347,13 +1377,29 @@ async function loadStudents() {
             return;
         }
 
+        // Prepare an array of promises to fetch test counts for each student
+        const studentPromises = [];
+        const students = [];
+
         snap.forEach(docSnap => {
             const u = docSnap.data();
             const userId = docSnap.id;
+            students.push({ id: userId, ...u });
+            studentPromises.push(getTestCount(userId));
+        });
+
+        // Wait for all test counts
+        const testCounts = await Promise.all(studentPromises);
+
+        students.forEach((u, index) => {
+            const userId = u.id;
+            const testCount = testCounts[index];
             
             // Count plans
             if (u.plan === "free") freeCount++;
-            if (u.plan === "paid" || u.plan === "premium") premiumCount++;
+            else if (u.plan === "paid") premiumCount++;
+            else if (u.plan === "unlimited") unlimitedCount++; // count separately if needed, but we show total paid+unlimited in stats? The existing stats show Free and Premium. We can adjust to include unlimited in Premium or separate. We'll keep as original: premiumCount includes paid only, but we can also show unlimited count if desired. For now, we'll just update premiumCount to include unlimited? The stat card says "Premium Plan", so we should include both paid and unlimited as premium users. Let's include both in premiumCount.
+            if (u.plan === "unlimited") premiumCount++; // treat unlimited as premium for stats
             
             // Format joined date
             let joinedDate = "-";
@@ -1370,12 +1416,15 @@ async function loadStudents() {
             const status = u.status || "active";
             const statusClass = status === "active" ? "status-active" : "status-inactive";
             
-            // Format plan
+            // Format plan badge
             const plan = u.plan || "free";
-            const planClass = plan === "paid" || plan === "premium" ? "plan-paid" : "plan-free";
-            const planDisplay = plan === "paid" || plan === "premium" ? "Premium" : "Free";
+            let planClass = "plan-free";
+            if (plan === "paid") planClass = "plan-paid";
+            else if (plan === "unlimited") planClass = "plan-unlimited";
+            const planDisplay = plan === "paid" ? "Premium" : (plan === "unlimited" ? "Unlimited" : "Free");
             
-            // Add row with new Change Plan column
+            // Build row with three plan buttons: Make Free, Make Paid, Make Unlimited
+            // Disable the button corresponding to current plan
             studentTableBody.innerHTML += `
                 <tr>
                     <td>${u.fullName || u.displayName || "-"}</td>
@@ -1383,7 +1432,7 @@ async function loadStudents() {
                     <td>${u.phoneNumber || "-"}</td>
                     <td><span class="plan-badge ${planClass}">${planDisplay}</span></td>
                     <td>${joinedDate}</td>
-                    <td>${u.testsTaken || 0}</td>
+                    <td>${testCount}</td> <!-- UPDATED: actual test count -->
                     <td class="${statusClass}">${status.charAt(0).toUpperCase() + status.slice(1)}</td>
                     <td>
                         <div class="action-buttons">
@@ -1401,10 +1450,17 @@ async function loadStudents() {
                         </div>
                     </td>
                     <td>
-                        <button class="change-plan-btn" onclick="changeStudentPlan('${userId}', '${plan}')" title="${plan === 'free' ? 'Upgrade to Paid' : 'Downgrade to Free'}">
-                            <i class="fas ${plan === 'free' ? 'fa-crown' : 'fa-user-check'}"></i>
-                            ${plan === 'free' ? 'Make Paid' : 'Make Free'}
-                        </button>
+                        <div class="plan-buttons" style="display: flex; gap: 5px; flex-wrap: wrap;">
+                            <button class="plan-btn free-btn" onclick="updateUserPlan('${userId}', 'free')" ${plan === 'free' ? 'disabled' : ''}>
+                                <i class="fas fa-user"></i> Free
+                            </button>
+                            <button class="plan-btn paid-btn" onclick="updateUserPlan('${userId}', 'paid')" ${plan === 'paid' ? 'disabled' : ''}>
+                                <i class="fas fa-crown"></i> Paid
+                            </button>
+                            <button class="plan-btn unlimited-btn" onclick="updateUserPlan('${userId}', 'unlimited')" ${plan === 'unlimited' ? 'disabled' : ''}>
+                                <i class="fas fa-infinity"></i> Unlimited
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -1412,7 +1468,8 @@ async function loadStudents() {
 
         totalStudents.textContent = snap.size;
         freePlanStudents.textContent = freeCount;
-        premiumPlanStudents.textContent = premiumCount;
+        // premiumPlanStudents now includes both paid and unlimited
+        premiumPlanStudents.textContent = premiumCount; 
 
     } catch (error) {
         console.error("Error loading students:", error);
