@@ -328,6 +328,37 @@ IMPORTANT:
         <h2><i class="fas fa-tasks"></i> Manage Question Bank</h2>
         <p class="section-info">Search, edit, or delete questions from the platform bank. <strong>Hover over question previews to see full text with formatting.</strong></p>
 
+
+       <!-- Bulk Delete by Subject -->
+<div class="bulk-delete-section">
+  <h3><i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i> Danger Zone: Delete All Questions by Subject</h3>
+  <p class="warning-text">This action is irreversible. All questions under the selected subject will be permanently removed from the database.</p>
+  <div class="bulk-delete-controls">
+    <select id="bulkDeleteSubject" class="form-control" style="max-width: 300px;">
+      <option value="" disabled selected>Select a subject</option>
+      <option value="mathematics">Mathematics</option>
+      <option value="english">English Language</option>
+      <option value="physics">Physics</option>
+      <option value="chemistry">Chemistry</option>
+      <option value="accounting">Accounting</option>
+      <option value="literature">Literature in English</option>
+      <option value="government">Government</option>
+      <option value="commerce">Commerce</option>
+      <option value="biology">Biology</option>
+      <option value="economics">Economics</option>
+      <option value="crk">Christian Religious Knowledge (CRK)</option>
+    </select>
+    <button id="bulkDeleteBtn" class="btn btn-danger"><i class="fas fa-trash-alt"></i> Delete All Questions</button>
+  </div>
+  <div id="bulkDeleteProgress" class="progress-container" style="display: none; margin-top: 15px;">
+    <div class="progress-bar"><div class="progress-fill" id="bulkDeleteProgressFill"></div></div>
+    <p id="bulkDeleteStatus"></p>
+  </div>
+</div>
+
+
+
+
         <div class="search-box">
           <input type="text" id="questionSearch" placeholder="Search by keyword, subject, or exam type">
           <button id="searchBtn" class="btn-search"><i class="fas fa-search"></i> Search</button>

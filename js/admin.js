@@ -534,11 +534,11 @@ textMethodBtn.addEventListener("click", () => {
 
 // Download CSV Template
 downloadTemplateBtn.addEventListener("click", () => {
-    const template = `questionText,optionA,optionB,optionC,optionD,correctAnswer,solution,subject,examType,timeLimit
-"What is 2+2?",4,5,6,7,A,"Basic addition",mathematics,WAEC/NECO,120
-"What is the capital of France?",Paris,London,Berlin,Madrid,A,"Paris is the capital",geography,JAMB,90
-"Who wrote Romeo and Juliet?",William Shakespeare,Charles Dickens,Jane Austen,Mark Twain,A,"William Shakespeare wrote Romeo and Juliet",literature,WAEC/NECO,120
-"What is H2O?",Water,Oxygen,Hydrogen,Carbon Dioxide,A,"H2O is the chemical formula for water",chemistry,JAMB,60`;
+    const template = `questionText,optionA,optionB,optionC,optionD,correctAnswer,solution,subject,examType,timeLimit,topic
+"What is 2+2?",4,5,6,7,A,"Basic addition",mathematics,WAEC/NECO,120,Arithmetic
+"What is the capital of France?",Paris,London,Berlin,Madrid,A,"Paris is the capital",geography,JAMB,90,Geography
+"Who wrote Romeo and Juliet?",William Shakespeare,Charles Dickens,Jane Austen,Mark Twain,A,"William Shakespeare wrote Romeo and Juliet",literature,WAEC/NECO,120,Literature
+"What is H2O?",Water,Oxygen,Hydrogen,Carbon Dioxide,A,"H2O is the chemical formula for water",chemistry,JAMB,60,Chemistry`;
 
     const blob = new Blob([template], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -727,6 +727,7 @@ function updateCSVPreview() {
                     <th>#</th>
                     <th>Question Preview</th>
                     <th>Subject</th>
+                    <th>Topic</th>
                     <th>Exam</th>
                     <th>Correct</th>
                 </tr>
@@ -746,6 +747,7 @@ function updateCSVPreview() {
                 <td>${i + 1}</td>
                 <td>${formatTextForDisplay(questionPreview)}</td>
                 <td>${row.subject}</td>
+                <td>${row.topic || '-'}</td>
                 <td>${row.examtype || 'WAEC/NECO'}</td>
                 <td>${row.correctanswer?.toUpperCase() || 'A'}</td>
             </tr>
@@ -755,7 +757,7 @@ function updateCSVPreview() {
     if (csvData.length > 10) {
         previewHTML += `
             <tr>
-                <td colspan="5" style="text-align: center; font-style: italic;">
+                <td colspan="6" style="text-align: center; font-style: italic;">
                     ... and ${csvData.length - 10} more questions
                 </td>
             </tr>
@@ -831,6 +833,7 @@ startUploadBtn.addEventListener('click', async () => {
                 const questionDoc = {
                     examType: row.examtype || 'WAEC/NECO',
                     subject: row.subject,
+                    topic: row.topic || '', // NEW: include topic field
                     questionText: preserveMathFormatting(row.questiontext),
                     options: {
                         A: preserveMathFormatting(row.optiona),
@@ -1535,6 +1538,100 @@ window.deleteStudent = async (userId) => {
 
 // Initial load of students
 loadStudents();
+
+
+// ================= BULK DELETE BY SUBJECT =================
+const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+const bulkDeleteSubject = document.getElementById('bulkDeleteSubject');
+const bulkDeleteProgress = document.getElementById('bulkDeleteProgress');
+const bulkDeleteProgressFill = document.getElementById('bulkDeleteProgressFill');
+const bulkDeleteStatus = document.getElementById('bulkDeleteStatus');
+
+bulkDeleteBtn.addEventListener('click', async () => {
+  const subject = bulkDeleteSubject.value;
+  if (!subject) {
+    alert('Please select a subject.');
+    return;
+  }
+
+  // Confirmation with subject name
+  const subjectName = bulkDeleteSubject.options[bulkDeleteSubject.selectedIndex].text;
+  if (!confirm(`Are you absolutely sure you want to delete ALL questions under "${subjectName}"? This cannot be undone.`)) {
+    return;
+  }
+
+  // Double-check with a second confirmation
+  if (!confirm(`LAST WARNING: Type "DELETE" to confirm permanent deletion of all ${subjectName} questions.`)) {
+    return;
+  }
+
+  // Disable button and show progress
+  bulkDeleteBtn.disabled = true;
+  bulkDeleteProgress.style.display = 'block';
+  bulkDeleteProgressFill.style.width = '0%';
+  bulkDeleteStatus.textContent = 'Fetching questions...';
+
+  try {
+    // Query all questions with the selected subject
+    const q = query(collection(db, "questions"), where("subject", "==", subject));
+    const snapshot = await getDocs(q);
+    
+    const total = snapshot.size;
+    if (total === 0) {
+      bulkDeleteStatus.textContent = `No questions found under "${subjectName}".`;
+      bulkDeleteBtn.disabled = false;
+      return;
+    }
+
+    bulkDeleteStatus.textContent = `Found ${total} question(s). Starting deletion...`;
+
+    // Collect document references
+    const docRefs = snapshot.docs.map(doc => doc.ref);
+    
+    // Delete in batches of 500 (Firestore batch limit)
+    const BATCH_SIZE = 500;
+    let deleted = 0;
+
+    for (let i = 0; i < docRefs.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const batchRefs = docRefs.slice(i, i + BATCH_SIZE);
+      
+      batchRefs.forEach(ref => {
+        batch.delete(ref);
+      });
+
+      await batch.commit();
+      deleted += batchRefs.length;
+
+      // Update progress
+      const percent = Math.round((deleted / total) * 100);
+      bulkDeleteProgressFill.style.width = `${percent}%`;
+      bulkDeleteStatus.textContent = `Deleted ${deleted} of ${total} questions...`;
+    }
+
+    // Success
+    bulkDeleteStatus.textContent = `✅ Successfully deleted all ${total} questions under "${subjectName}".`;
+    bulkDeleteProgressFill.style.width = '100%';
+    
+    // Refresh the question list
+    loadQuestions(false, currentSearchTerm);
+    
+    // Reset after a delay
+    setTimeout(() => {
+      bulkDeleteBtn.disabled = false;
+      bulkDeleteProgress.style.display = 'none';
+      bulkDeleteSubject.value = ''; // Reset dropdown
+    }, 3000);
+
+  } catch (error) {
+    console.error("Error during bulk delete:", error);
+    bulkDeleteStatus.textContent = `❌ Error: ${error.message}`;
+    bulkDeleteBtn.disabled = false;
+  }
+});
+
+
+
 
 // ================= LOGOUT =================
 logoutBtn.addEventListener("click", async () => {
