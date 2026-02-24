@@ -36,6 +36,7 @@ const addQuestionForm = document.getElementById("addQuestionForm");
 const questionIdField = document.getElementById("questionId");
 const examType = document.getElementById("examType");
 const subject = document.getElementById("subject");
+const topicField = document.getElementById("topic");
 const timeLimit = document.getElementById("timeLimit");
 const questionText = document.getElementById("questionText");
 const questionImage = document.getElementById("questionImage");
@@ -94,6 +95,14 @@ const uploadTextBtn = document.getElementById("uploadTextBtn");
 const textPreview = document.getElementById("textPreview");
 const bulkUploadFeedback = document.getElementById("bulkUploadFeedback");
 
+// ================= STUDENT MODAL REFERENCES =================
+const studentModal = document.getElementById("studentDashboardModal");
+const modalStudentName = document.getElementById("modalStudentName");
+const modalStudentContent = document.getElementById("modalStudentContent");
+const closeStudentModal = document.getElementById("closeStudentModal");
+const saveStudentChanges = document.getElementById("saveStudentChanges");
+let currentEditingStudentId = null;
+
 // ================= IMAGE UPLOAD VARIABLES =================
 let questionImageBase64 = null;
 let solutionImageBase64 = null;
@@ -101,18 +110,24 @@ let csvData = null;
 let uploadInProgress = false;
 let cancelUpload = false;
 
-// ================= TAB SWITCHING =================
+// ================= TAB SWITCHING (SAFE) =================
 tabButtons.forEach(btn => {
   btn.addEventListener("click", () => {
     tabButtons.forEach(b => b.classList.remove("active"));
     tabContents.forEach(c => c.classList.remove("active"));
 
     btn.classList.add("active");
-    document.getElementById(btn.dataset.tab).classList.add("active");
+    const targetId = btn.dataset.tab;
+    const targetEl = document.getElementById(targetId);
+    if (targetEl) targetEl.classList.add("active");
     
     // Reload data when switching to student tab
-    if (btn.dataset.tab === "student-manager") {
+    if (targetId === "student-manager") {
       loadStudents();
+    }
+    // Load leaderboard when switching to leaderboard tab (if element exists)
+    if (targetId === "leaderboard") {
+      loadAdminLeaderboard();
     }
   });
 });
@@ -130,21 +145,17 @@ onAuthStateChanged(auth, (user) => {
 questionImage.addEventListener("change", function(e) {
     const file = e.target.files[0];
     if (file) {
-        // Validate file size (5MB limit)
         if (file.size > 5 * 1024 * 1024) {
             showValidationMessage("Image size must be less than 5MB", "error");
             this.value = '';
             return;
         }
-        
-        // Validate file type
         const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
         if (!validTypes.includes(file.type)) {
             showValidationMessage("Please upload a valid image file (JPG, PNG, GIF, WEBP)", "error");
             this.value = '';
             return;
         }
-        
         const reader = new FileReader();
         reader.onload = function(e) {
             questionImageBase64 = e.target.result;
@@ -164,21 +175,17 @@ questionImage.addEventListener("change", function(e) {
 solutionImage.addEventListener("change", function(e) {
     const file = e.target.files[0];
     if (file) {
-        // Validate file size (5MB limit)
         if (file.size > 5 * 1024 * 1024) {
             showValidationMessage("Image size must be less than 5MB", "error");
             this.value = '';
             return;
         }
-        
-        // Validate file type
         const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
         if (!validTypes.includes(file.type)) {
             showValidationMessage("Please upload a valid image file (JPG, PNG, GIF, WEBP)", "error");
             this.value = '';
             return;
         }
-        
         const reader = new FileReader();
         reader.onload = function(e) {
             solutionImageBase64 = e.target.result;
@@ -215,8 +222,6 @@ function showValidationMessage(message, type = "error") {
     validationMessage.textContent = message;
     validationMessage.className = `validation-message ${type}`;
     validationMessage.classList.add('show');
-    
-    // Scroll to validation message
     validationMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -230,7 +235,6 @@ function hideValidationMessage() {
 // Helper to detect if text contains mathematical expressions
 function containsMathExpression(text) {
     if (!text) return false;
-    
     const mathPatterns = [
         /log\s*[a-zA-Z0-9]/,
         /[∫∑∏√^]/g,
@@ -248,66 +252,54 @@ function containsMathExpression(text) {
         /\$\$.*\$\$/,
         /\$.*\$/,
     ];
-    
     return mathPatterns.some(pattern => pattern.test(text));
 }
 
-// Helper to preserve mathematical formatting in text - KEEPS ORIGINAL FORMATTING
+// Helper to preserve mathematical formatting in text
 function preserveMathFormatting(text) {
     if (!text) return text;
-    
     const lines = text.split('\n');
     const result = [];
-    
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        
         if (!line.trim() && !containsMathExpression(lines[i-1] || '') && !containsMathExpression(lines[i+1] || '')) {
             result.push(line);
             continue;
         }
-        
         const isMathLine = containsMathExpression(line);
         const prevIsMath = i > 0 && containsMathExpression(lines[i-1]);
         const nextIsMath = i < lines.length - 1 && containsMathExpression(lines[i+1]);
-        
         if (isMathLine && (prevIsMath || nextIsMath)) {
             result.push(line);
         } else {
             result.push(line);
         }
     }
-    
     return result.join('\n');
 }
 
-// Format text for HTML display - PRESERVES MATH FORMATTING
+// Format text for HTML display
 function formatTextForDisplay(text) {
     if (!text) return "";
-    
     const encodedText = text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
-    
     let formatted = encodedText;
     const lines = formatted.split('\n');
     formatted = lines.map((line, index) => {
         const isMathLine = containsMathExpression(line);
         const prevIsMath = index > 0 && containsMathExpression(lines[index-1]);
         const nextIsMath = index < lines.length - 1 && containsMathExpression(lines[index+1]);
-        
         if (isMathLine && (prevIsMath || nextIsMath)) {
             return line;
         } else {
             return line.replace(/\n/g, '<br>');
         }
     }).join('<br>');
-    
     formatted = formatted.replace(/([^<])\n([^<])/g, '$1<br>$2');
-    
     return formatted;
 }
 
@@ -321,7 +313,6 @@ function formatTextForTooltip(text) {
 function getQuestionType(questionData) {
     const hasText = questionData.questionText && questionData.questionText.trim() !== '';
     const hasImage = questionData.questionImage;
-    
     if (hasText && hasImage) return "both";
     if (hasText) return "text";
     if (hasImage) return "image";
@@ -332,7 +323,6 @@ function getQuestionType(questionData) {
 function getSolutionType(questionData) {
     const hasText = questionData.solution && questionData.solution.trim() !== '';
     const hasImage = questionData.solutionImage;
-    
     if (hasText && hasImage) return "both";
     if (hasText) return "text";
     if (hasImage) return "image";
@@ -343,13 +333,12 @@ function getSolutionType(questionData) {
 function resetQuestionForm() {
     addQuestionForm.reset();
     questionIdField.value = "";
+    topicField.value = "";
     submitQuestionBtn.innerHTML = '<i class="fas fa-save"></i> Save Question to Bank';
     cancelEditBtn.style.display = 'none';
     formFeedback.textContent = "";
     formFeedback.className = "feedback-message";
     hideValidationMessage();
-    
-    // Clear images
     removeQuestionImage();
     removeSolutionImage();
 }
@@ -359,14 +348,12 @@ async function loadQuestionForEdit(questionId) {
     try {
         const questionRef = doc(db, "questions", questionId);
         const questionSnap = await getDoc(questionRef);
-        
         if (questionSnap.exists()) {
             const questionData = questionSnap.data();
-            
-            // Populate form fields with preserved formatting
             questionIdField.value = questionId;
             examType.value = questionData.examType || "";
             subject.value = questionData.subject || "";
+            topicField.value = questionData.topic || "";
             timeLimit.value = questionData.timeLimit || 120;
             questionText.value = preserveMathFormatting(questionData.questionText || "");
             optionA.value = preserveMathFormatting(questionData.options?.A || "");
@@ -375,34 +362,24 @@ async function loadQuestionForEdit(questionId) {
             optionD.value = preserveMathFormatting(questionData.options?.D || "");
             correctAnswer.value = questionData.correctAnswer || "";
             solution.value = preserveMathFormatting(questionData.solution || "");
-            
-            // Load images if they exist
             if (questionData.questionImage) {
                 questionImageBase64 = questionData.questionImage;
                 questionImagePreviewImg.src = questionImageBase64;
                 questionImagePreview.style.display = 'block';
             }
-            
             if (questionData.solutionImage) {
                 solutionImageBase64 = questionData.solutionImage;
                 solutionImagePreviewImg.src = solutionImageBase64;
                 solutionImagePreview.style.display = 'block';
             }
-            
-            // Change button text and show cancel button
             submitQuestionBtn.innerHTML = '<i class="fas fa-save"></i> Update Question';
             cancelEditBtn.style.display = 'inline-flex';
-            
-            // Switch to Add Question tab
             tabButtons.forEach(b => b.classList.remove("active"));
             tabContents.forEach(c => c.classList.remove("active"));
             document.querySelector('[data-tab="question-manager"]').classList.add("active");
             document.getElementById("question-manager").classList.add("active");
-            
             formFeedback.textContent = "✅ Now editing question. Make changes and click 'Update Question'.";
             formFeedback.className = "feedback-message success";
-            
-            // Scroll to form
             document.getElementById("question-manager").scrollIntoView({ behavior: 'smooth' });
         } else {
             formFeedback.textContent = "❌ Question not found";
@@ -418,25 +395,18 @@ async function loadQuestionForEdit(questionId) {
 // Validate form before submission
 function validateQuestionForm() {
     const questionTextValue = preserveMathFormatting(questionText.value);
-    
-    // Check if at least question text or question image is provided
     if (!questionTextValue && !questionImageBase64) {
         showValidationMessage("❌ Please provide either question text or question image (or both)");
         return false;
     }
-    
-    // Check if at least one option is filled
     if (!optionA.value.trim() || !optionB.value.trim() || !optionC.value.trim() || !optionD.value.trim()) {
         showValidationMessage("❌ All four options (A, B, C, D) are required");
         return false;
     }
-    
-    // Check if correct answer is selected
     if (!correctAnswer.value) {
         showValidationMessage("❌ Please select the correct answer");
         return false;
     }
-    
     hideValidationMessage();
     return true;
 }
@@ -444,16 +414,12 @@ function validateQuestionForm() {
 // Save or update question
 addQuestionForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-
-    // Validate form
-    if (!validateQuestionForm()) {
-        return;
-    }
-
+    if (!validateQuestionForm()) return;
     try {
         const questionData = {
             examType: examType.value,
             subject: subject.value,
+            topic: topicField.value.trim() || "",
             questionText: preserveMathFormatting(questionText.value),
             options: {
                 A: preserveMathFormatting(optionA.value),
@@ -465,43 +431,23 @@ addQuestionForm.addEventListener("submit", async (e) => {
             solution: preserveMathFormatting(solution.value),
             timeLimit: Number(timeLimit.value),
             lastUpdated: serverTimestamp(),
-            questionType: getQuestionType({ 
-                questionText: questionText.value, 
-                questionImage: questionImageBase64 
-            }),
-            solutionType: getSolutionType({ 
-                solution: solution.value, 
-                solutionImage: solutionImageBase64 
-            })
+            questionType: getQuestionType({ questionText: questionText.value, questionImage: questionImageBase64 }),
+            solutionType: getSolutionType({ solution: solution.value, solutionImage: solutionImageBase64 })
         };
-
-        // Add images if provided
-        if (questionImageBase64) {
-            questionData.questionImage = questionImageBase64;
-        }
-        if (solutionImageBase64) {
-            questionData.solutionImage = solutionImageBase64;
-        }
-
-        // Check if we're updating or adding new
+        if (questionImageBase64) questionData.questionImage = questionImageBase64;
+        if (solutionImageBase64) questionData.solutionImage = solutionImageBase64;
         if (questionIdField.value) {
-            // Update existing question
             await updateDoc(doc(db, "questions", questionIdField.value), questionData);
             formFeedback.textContent = "✅ Question updated successfully";
         } else {
-            // Add new question
             questionData.createdAt = serverTimestamp();
             questionData.createdBy = auth.currentUser.uid;
             await addDoc(collection(db, "questions"), questionData);
             formFeedback.textContent = "✅ Question saved successfully";
         }
-        
         formFeedback.className = "feedback-message success";
-        
-        // Reset form and reload question list
         resetQuestionForm();
         loadQuestions(false);
-        
     } catch (error) {
         console.error("Error saving question:", error);
         formFeedback.textContent = "❌ Failed to save question";
@@ -509,15 +455,11 @@ addQuestionForm.addEventListener("submit", async (e) => {
     }
 });
 
-// Clear form button
 clearFormBtn.addEventListener("click", resetQuestionForm);
-
-// Cancel edit button
 cancelEditBtn.addEventListener("click", resetQuestionForm);
 
 // ================= BULK UPLOAD FUNCTIONS =================
 
-// Switch between CSV and Text upload methods
 csvMethodBtn.addEventListener("click", () => {
     csvMethodBtn.classList.add("active");
     textMethodBtn.classList.remove("active");
@@ -532,14 +474,12 @@ textMethodBtn.addEventListener("click", () => {
     csvUploadSection.classList.remove("active");
 });
 
-// Download CSV Template
 downloadTemplateBtn.addEventListener("click", () => {
     const template = `questionText,optionA,optionB,optionC,optionD,correctAnswer,solution,subject,examType,timeLimit,topic
 "What is 2+2?",4,5,6,7,A,"Basic addition",mathematics,WAEC/NECO,120,Arithmetic
 "What is the capital of France?",Paris,London,Berlin,Madrid,A,"Paris is the capital",geography,JAMB,90,Geography
 "Who wrote Romeo and Juliet?",William Shakespeare,Charles Dickens,Jane Austen,Mark Twain,A,"William Shakespeare wrote Romeo and Juliet",literature,WAEC/NECO,120,Literature
 "What is H2O?",Water,Oxygen,Hydrogen,Carbon Dioxide,A,"H2O is the chemical formula for water",chemistry,JAMB,60,Chemistry`;
-
     const blob = new Blob([template], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -551,21 +491,17 @@ downloadTemplateBtn.addEventListener("click", () => {
     window.URL.revokeObjectURL(url);
 });
 
-// Drag and drop functionality
 csvDropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
     csvDropZone.classList.add('drag-over');
 });
-
 csvDropZone.addEventListener('dragleave', (e) => {
     e.preventDefault();
     csvDropZone.classList.remove('drag-over');
 });
-
 csvDropZone.addEventListener('drop', (e) => {
     e.preventDefault();
     csvDropZone.classList.remove('drag-over');
-    
     const files = e.dataTransfer.files;
     if (files.length > 0) {
         const file = files[0];
@@ -577,25 +513,17 @@ csvDropZone.addEventListener('drop', (e) => {
     }
 });
 
-// Browse CSV file
-browseCsvBtn.addEventListener('click', () => {
-    csvFileInput.click();
-});
-
+browseCsvBtn.addEventListener('click', () => csvFileInput.click());
 csvFileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
-    if (file) {
-        handleCSVFile(file);
-    }
+    if (file) handleCSVFile(file);
 });
 
-// Handle CSV file processing
 function handleCSVFile(file) {
     if (file.size > 5 * 1024 * 1024) {
         showBulkUploadFeedback('File size exceeds 5MB limit', 'error');
         return;
     }
-
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
@@ -604,22 +532,17 @@ function handleCSVFile(file) {
             showBulkUploadFeedback('Error parsing CSV file: ' + error.message, 'error');
         }
     };
-    reader.onerror = () => {
-        showBulkUploadFeedback('Error reading file', 'error');
-    };
+    reader.onerror = () => showBulkUploadFeedback('Error reading file', 'error');
     reader.readAsText(file);
 }
 
-// Parse CSV data
 function parseCSVData(csvText) {
     const lines = csvText.split('\n').filter(line => line.trim() !== '');
     if (lines.length < 2) {
         showBulkUploadFeedback('CSV file must contain at least header row and one data row', 'error');
         return;
     }
-
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    
     const requiredHeaders = ['questiontext', 'optiona', 'optionb', 'optionc', 'optiond', 'correctanswer', 'subject'];
     for (const header of requiredHeaders) {
         if (!headers.includes(header)) {
@@ -627,32 +550,23 @@ function parseCSVData(csvText) {
             return;
         }
     }
-
     csvData = [];
     const errors = [];
-
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
         const values = parseCSVLine(line);
-        
         if (values.length !== headers.length) {
             errors.push(`Row ${i}: Column count mismatch`);
             continue;
         }
-
         const row = {};
         headers.forEach((header, index) => {
             row[header] = values[index] ? preserveMathFormatting(values[index].trim()) : '';
         });
-
         const validationError = validateQuestionRow(row, i);
-        if (validationError) {
-            errors.push(validationError);
-        } else {
-            csvData.push(row);
-        }
+        if (validationError) errors.push(validationError);
+        else csvData.push(row);
     }
-
     if (errors.length > 0) {
         showBulkUploadFeedback(`Found ${errors.length} error(s). First error: ${errors[0]}`, 'error');
         csvData = null;
@@ -664,84 +578,46 @@ function parseCSVData(csvText) {
     }
 }
 
-// Parse CSV line with quoted values
 function parseCSVLine(line) {
     const result = [];
     let inQuotes = false;
     let currentField = '';
-
     for (let i = 0; i < line.length; i++) {
         const char = line[i];
-        
-        if (char === '"') {
-            inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
+        if (char === '"') inQuotes = !inQuotes;
+        else if (char === ',' && !inQuotes) {
             result.push(currentField);
             currentField = '';
-        } else {
-            currentField += char;
-        }
+        } else currentField += char;
     }
-    
     result.push(currentField);
     return result;
 }
 
-// Validate question row
 function validateQuestionRow(row, rowNumber) {
-    if (!row.questiontext || row.questiontext.trim() === '') {
-        return `Row ${rowNumber}: Question text is required`;
-    }
-    
-    if (!row.optiona || !row.optionb || !row.optionc || !row.optiond) {
-        return `Row ${rowNumber}: All options (A, B, C, D) are required`;
-    }
-    
+    if (!row.questiontext || row.questiontext.trim() === '') return `Row ${rowNumber}: Question text is required`;
+    if (!row.optiona || !row.optionb || !row.optionc || !row.optiond) return `Row ${rowNumber}: All options (A, B, C, D) are required`;
     const correctAnswer = row.correctanswer?.toUpperCase();
-    if (!['A', 'B', 'C', 'D'].includes(correctAnswer)) {
-        return `Row ${rowNumber}: Correct answer must be A, B, C, or D`;
-    }
-    
-    if (!row.subject || row.subject.trim() === '') {
-        return `Row ${rowNumber}: Subject is required`;
-    }
-    
-    if (row.timelimit && isNaN(parseInt(row.timelimit))) {
-        return `Row ${rowNumber}: Time limit must be a number`;
-    }
-    
+    if (!['A', 'B', 'C', 'D'].includes(correctAnswer)) return `Row ${rowNumber}: Correct answer must be A, B, C, or D`;
+    if (!row.subject || row.subject.trim() === '') return `Row ${rowNumber}: Subject is required`;
+    if (row.timelimit && isNaN(parseInt(row.timelimit))) return `Row ${rowNumber}: Time limit must be a number`;
     return null;
 }
 
-// Update CSV preview
 function updateCSVPreview() {
     if (!csvData || csvData.length === 0) {
         csvPreview.innerHTML = '<p>No data to preview</p>';
         return;
     }
-
     let previewHTML = `
         <table class="csv-preview-table">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Question Preview</th>
-                    <th>Subject</th>
-                    <th>Topic</th>
-                    <th>Exam</th>
-                    <th>Correct</th>
-                </tr>
-            </thead>
+            <thead><tr><th>#</th><th>Question Preview</th><th>Subject</th><th>Topic</th><th>Exam</th><th>Correct</th></tr></thead>
             <tbody>
     `;
-
     const displayCount = Math.min(csvData.length, 10);
     for (let i = 0; i < displayCount; i++) {
         const row = csvData[i];
-        const questionPreview = row.questiontext.length > 50 
-            ? row.questiontext.substring(0, 50) + '...' 
-            : row.questiontext;
-        
+        const questionPreview = row.questiontext.length > 50 ? row.questiontext.substring(0, 50) + '...' : row.questiontext;
         previewHTML += `
             <tr>
                 <td>${i + 1}</td>
@@ -753,87 +629,55 @@ function updateCSVPreview() {
             </tr>
         `;
     }
-
     if (csvData.length > 10) {
-        previewHTML += `
-            <tr>
-                <td colspan="6" style="text-align: center; font-style: italic;">
-                    ... and ${csvData.length - 10} more questions
-                </td>
-            </tr>
-        `;
+        previewHTML += `<tr><td colspan="6" style="text-align: center; font-style: italic;">... and ${csvData.length - 10} more questions</td></tr>`;
     }
-
-    previewHTML += `
-            </tbody>
-        </table>
-        <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">
-            Total questions: ${csvData.length}
-        </p>
-    `;
-
+    previewHTML += `</tbody></table><p style="margin-top:10px; color:#666;">Total questions: ${csvData.length}</p>`;
     csvPreview.innerHTML = previewHTML;
 }
 
-// Show bulk upload feedback
 function showBulkUploadFeedback(message, type = 'info') {
     bulkUploadFeedback.textContent = message;
     bulkUploadFeedback.className = `feedback-message ${type}`;
     bulkUploadFeedback.style.display = 'block';
-    
-    if (type === 'error') {
-        setTimeout(() => {
-            bulkUploadFeedback.style.display = 'none';
-        }, 5000);
-    }
+    if (type === 'error') setTimeout(() => bulkUploadFeedback.style.display = 'none', 5000);
 }
 
-// Start bulk upload
 startUploadBtn.addEventListener('click', async () => {
     if (!csvData || csvData.length === 0) {
         showBulkUploadFeedback('No data to upload', 'error');
         return;
     }
-
     if (uploadInProgress) {
         showBulkUploadFeedback('Upload already in progress', 'error');
         return;
     }
-
     uploadInProgress = true;
     cancelUpload = false;
     startUploadBtn.disabled = true;
     cancelUploadBtn.style.display = 'inline-flex';
     uploadProgress.style.display = 'block';
-    
     const totalQuestions = csvData.length;
     let successful = 0;
-    let failed = 0;
-    
     totalCount.textContent = totalQuestions;
     processedCount.textContent = '0';
     progressPercent.textContent = '0%';
     progressFill.style.width = '0%';
-
     showBulkUploadFeedback(`Starting upload of ${totalQuestions} questions...`, 'info');
-
     try {
         const BATCH_SIZE = 500;
         const userId = auth.currentUser?.uid;
         const timestamp = serverTimestamp();
-
         for (let i = 0; i < totalQuestions; i += BATCH_SIZE) {
             if (cancelUpload) break;
-
             const batch = writeBatch(db);
             const batchEnd = Math.min(i + BATCH_SIZE, totalQuestions);
-
             for (let j = i; j < batchEnd; j++) {
                 const row = csvData[j];
                 const questionDoc = {
                     examType: row.examtype || 'WAEC/NECO',
                     subject: row.subject,
-                    topic: row.topic || '', // NEW: include topic field
+                    topic: row.topic || '',
                     questionText: preserveMathFormatting(row.questiontext),
                     options: {
                         A: preserveMathFormatting(row.optiona),
@@ -844,40 +688,32 @@ startUploadBtn.addEventListener('click', async () => {
                     correctAnswer: row.correctanswer?.toUpperCase() || 'A',
                     solution: preserveMathFormatting(row.solution || ''),
                     timeLimit: row.timelimit ? parseInt(row.timelimit) : 120,
-                    questionType: 'text', // CSV upload only supports text
+                    questionType: 'text',
                     solutionType: row.solution ? 'text' : 'none',
                     createdAt: timestamp,
                     lastUpdated: timestamp,
                     createdBy: userId
                 };
-
                 const docRef = doc(collection(db, "questions"));
                 batch.set(docRef, questionDoc);
             }
-
             await batch.commit();
             successful += (batchEnd - i);
-
             const progress = Math.round((successful / totalQuestions) * 100);
             processedCount.textContent = successful;
             progressPercent.textContent = `${progress}%`;
             progressFill.style.width = `${progress}%`;
-
             await new Promise(resolve => setTimeout(resolve, 100));
         }
-
         if (cancelUpload) {
             showBulkUploadFeedback('Upload cancelled', 'error');
         } else {
             showBulkUploadFeedback(`✅ Successfully uploaded ${successful} questions!`, 'success');
-            
             csvData = null;
             csvPreview.innerHTML = '<p>No file selected. Upload a CSV file to see preview.</p>';
             startUploadBtn.disabled = true;
-            
             loadQuestions(false);
         }
-
     } catch (error) {
         console.error('Bulk upload error:', error);
         showBulkUploadFeedback(`Error during upload: ${error.message}`, 'error');
@@ -889,7 +725,6 @@ startUploadBtn.addEventListener('click', async () => {
     }
 });
 
-// Cancel upload
 cancelUploadBtn.addEventListener('click', () => {
     if (uploadInProgress) {
         cancelUpload = true;
@@ -900,23 +735,17 @@ cancelUploadBtn.addEventListener('click', () => {
 
 // ================= TEXT FORMAT UPLOAD =================
 
-// Parse text format
 parseTextBtn.addEventListener('click', () => {
     const text = bulkTextInput.value.trim();
     if (!text) {
         showBulkUploadFeedback('Please enter questions in text format', 'error');
         return;
     }
-
     try {
         const questions = parseTextFormat(text);
         textPreview.innerHTML = `
-            <div class="feedback-message success">
-                Found ${questions.length} valid questions
-            </div>
-            <p style="margin-top: 10px; color: #666;">
-                Ready to upload ${questions.length} questions. Click "Upload Text Questions" to proceed.
-            </p>
+            <div class="feedback-message success">Found ${questions.length} valid questions</div>
+            <p style="margin-top:10px; color:#666;">Ready to upload ${questions.length} questions. Click "Upload Text Questions" to proceed.</p>
         `;
         uploadTextBtn.disabled = false;
         uploadTextBtn.dataset.questions = JSON.stringify(questions);
@@ -926,11 +755,9 @@ parseTextBtn.addEventListener('click', () => {
     }
 });
 
-// Parse text format - PRESERVES MATHEMATICAL FORMATTING
 function parseTextFormat(text) {
     const blocks = text.split(/\n\s*\n/).filter(block => block.trim() !== '');
     const questions = [];
-
     blocks.forEach((block, blockIndex) => {
         const lines = block.split('\n');
         const question = {
@@ -945,19 +772,15 @@ function parseTextFormat(text) {
             examType: 'WAEC/NECO',
             timeLimit: 120
         };
-
         let currentField = '';
         let collectingMultiLine = false;
-
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            
             if (line.match(/^[QABCD]:|^Correct:|^Solution:|^Subject:|^Exam Type:|^Time Limit:/)) {
                 if (collectingMultiLine && currentField && question[currentField]) {
                     question[currentField] += '\n' + line.substring(line.indexOf(':') + 1).trim();
                 } else {
                     collectingMultiLine = false;
-                    
                     if (line.startsWith('Q:')) {
                         currentField = 'questionText';
                         question.questionText = line.substring(2).trim();
@@ -987,7 +810,6 @@ function parseTextFormat(text) {
                     const currentValue = question[currentField];
                     const isMathLine = containsMathExpression(line);
                     const prevIsMath = containsMathExpression(currentValue);
-                    
                     if (isMathLine && prevIsMath) {
                         question[currentField] = currentValue + ' ' + line.trim();
                     } else {
@@ -999,85 +821,64 @@ function parseTextFormat(text) {
                 throw new Error(`Block ${blockIndex + 1}, line ${i + 1}: Unexpected line format - "${line}"`);
             }
         }
-
         question.questionText = preserveMathFormatting(question.questionText);
         question.optionA = preserveMathFormatting(question.optionA);
         question.optionB = preserveMathFormatting(question.optionB);
         question.optionC = preserveMathFormatting(question.optionC);
         question.optionD = preserveMathFormatting(question.optionD);
         question.solution = preserveMathFormatting(question.solution);
-
-        if (!question.questionText || !question.optionA || !question.optionB || 
-            !question.optionC || !question.optionD) {
+        if (!question.questionText || !question.optionA || !question.optionB || !question.optionC || !question.optionD) {
             throw new Error(`Block ${blockIndex + 1}: Missing required fields`);
         }
-
         if (!['A', 'B', 'C', 'D'].includes(question.correctAnswer)) {
             throw new Error(`Block ${blockIndex + 1}: Correct answer must be A, B, C, or D`);
         }
-
         questions.push(question);
     });
-
     return questions;
 }
 
-// Upload text questions
 uploadTextBtn.addEventListener('click', async () => {
     const questionsJson = uploadTextBtn.dataset.questions;
     if (!questionsJson) {
         showBulkUploadFeedback('Please validate the text format first', 'error');
         return;
     }
-
     const questions = JSON.parse(questionsJson);
     await uploadQuestionsBatch(questions);
 });
 
-// Generic batch upload function - PRESERVES FORMATTING
 async function uploadQuestionsBatch(questions) {
     if (uploadInProgress) {
         showBulkUploadFeedback('Upload already in progress', 'error');
         return;
     }
-
     uploadInProgress = true;
     uploadTextBtn.disabled = true;
     uploadProgress.style.display = 'block';
-    
     const totalQuestions = questions.length;
     let successful = 0;
-    
     totalCount.textContent = totalQuestions;
     processedCount.textContent = '0';
     progressPercent.textContent = '0%';
     progressFill.style.width = '0%';
-
     showBulkUploadFeedback(`Starting upload of ${totalQuestions} questions...`, 'info');
-
     try {
         const BATCH_SIZE = 500;
         const userId = auth.currentUser?.uid;
         const timestamp = serverTimestamp();
-
         for (let i = 0; i < totalQuestions; i += BATCH_SIZE) {
             if (cancelUpload) break;
-
             const batch = writeBatch(db);
             const batchEnd = Math.min(i + BATCH_SIZE, totalQuestions);
-
             for (let j = i; j < batchEnd; j++) {
                 const q = questions[j];
                 const questionDoc = {
                     examType: q.examType,
                     subject: q.subject,
+                    topic: q.topic || "",
                     questionText: q.questionText,
-                    options: {
-                        A: q.optionA,
-                        B: q.optionB,
-                        C: q.optionC,
-                        D: q.optionD
-                    },
+                    options: { A: q.optionA, B: q.optionB, C: q.optionC, D: q.optionD },
                     correctAnswer: q.correctAnswer,
                     solution: q.solution,
                     timeLimit: q.timeLimit,
@@ -1087,34 +888,26 @@ async function uploadQuestionsBatch(questions) {
                     lastUpdated: timestamp,
                     createdBy: userId
                 };
-
                 const docRef = doc(collection(db, "questions"));
                 batch.set(docRef, questionDoc);
             }
-
             await batch.commit();
             successful += (batchEnd - i);
-
             const progress = Math.round((successful / totalQuestions) * 100);
             processedCount.textContent = successful;
             progressPercent.textContent = `${progress}%`;
             progressFill.style.width = `${progress}%`;
-
             await new Promise(resolve => setTimeout(resolve, 100));
         }
-
         if (cancelUpload) {
             showBulkUploadFeedback('Upload cancelled', 'error');
         } else {
             showBulkUploadFeedback(`✅ Successfully uploaded ${successful} questions!`, 'success');
-            
             bulkTextInput.value = '';
             textPreview.innerHTML = '';
             uploadTextBtn.disabled = true;
-            
             loadQuestions(false);
         }
-
     } catch (error) {
         console.error('Text upload error:', error);
         showBulkUploadFeedback(`Error during upload: ${error.message}`, 'error');
@@ -1132,44 +925,23 @@ let currentSearchTerm = "";
 async function loadQuestions(loadMore = false, searchTerm = "") {
     try {
         let q;
-        
         if (searchTerm) {
-            q = query(
-                collection(db, "questions"),
-                orderBy("createdAt", "desc")
-            );
+            q = query(collection(db, "questions"), orderBy("createdAt", "desc"));
         } else {
-            q = query(
-                collection(db, "questions"),
-                orderBy("createdAt", "desc"),
-                limit(10)
-            );
-
-            if (loadMore && lastVisible) {
-                q = query(q, startAfter(lastVisible));
-            }
+            q = query(collection(db, "questions"), orderBy("createdAt", "desc"), limit(10));
+            if (loadMore && lastVisible) q = query(q, startAfter(lastVisible));
         }
-
         const snapshot = await getDocs(q);
-
         if (!loadMore || searchTerm) {
             questionTableBody.innerHTML = "";
             lastVisible = null;
         }
-
         let questions = [];
         snapshot.forEach(docSnap => {
-            if (!loadMore || searchTerm) {
-                lastVisible = docSnap;
-            }
+            if (!loadMore || searchTerm) lastVisible = docSnap;
             const qData = docSnap.data();
-            questions.push({
-                id: docSnap.id,
-                ...qData
-            });
+            questions.push({ id: docSnap.id, ...qData });
         });
-
-        // Apply search filter if search term exists
         if (searchTerm) {
             const searchLower = searchTerm.toLowerCase();
             questions = questions.filter(q => 
@@ -1179,37 +951,22 @@ async function loadQuestions(loadMore = false, searchTerm = "") {
                 (q.solution && q.solution.toLowerCase().includes(searchLower))
             );
         }
-
-        // Display questions
         if (questions.length === 0) {
-            questionTableBody.innerHTML = `
-                <tr><td colspan="8" class="text-center">No questions found</td></tr>
-            `;
+            questionTableBody.innerHTML = `<tr><td colspan="8" class="text-center">No questions found</td></tr>`;
             return;
         }
-
         questions.forEach(q => {
-            const questionPreview = q.questionText ? (q.questionText.length > 40 
-                ? q.questionText.substring(0, 40) + "..." 
-                : q.questionText) : "[Image Question]";
-            
+            const questionPreview = q.questionText ? (q.questionText.length > 40 ? q.questionText.substring(0,40)+"..." : q.questionText) : "[Image Question]";
             const displayPreview = formatTextForDisplay(questionPreview);
             const fullQuestionTooltip = formatTextForTooltip(q.questionText || "Image-based question");
-            
-            // Determine question type for display
             let typeBadge = '';
             const questionType = getQuestionType(q);
-            if (questionType === 'text') {
-                typeBadge = '<span class="question-type type-text">Text</span>';
-            } else if (questionType === 'image') {
-                typeBadge = '<span class="question-type type-image">Image</span>';
-            } else if (questionType === 'both') {
-                typeBadge = '<span class="question-type type-both">Both</span>';
-            }
-            
+            if (questionType === 'text') typeBadge = '<span class="question-type type-text">Text</span>';
+            else if (questionType === 'image') typeBadge = '<span class="question-type type-image">Image</span>';
+            else if (questionType === 'both') typeBadge = '<span class="question-type type-both">Both</span>';
             questionTableBody.innerHTML += `
                 <tr>
-                    <td>${q.id.slice(0, 6)}...</td>
+                    <td>${q.id.slice(0,6)}...</td>
                     <td>${q.subject}</td>
                     <td>${q.examType}</td>
                     <td title="${fullQuestionTooltip}">${displayPreview}</td>
@@ -1218,35 +975,22 @@ async function loadQuestions(loadMore = false, searchTerm = "") {
                     <td>${q.timeLimit}s</td>
                     <td>
                         <div class="action-buttons">
-                            <button class="action-btn edit-btn" onclick="editQuestion('${q.id}')" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="action-btn delete-btn" onclick="deleteQuestion('${q.id}')" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                            <button class="action-btn edit-btn" onclick="editQuestion('${q.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+                            <button class="action-btn delete-btn" onclick="deleteQuestion('${q.id}')" title="Delete"><i class="fas fa-trash"></i></button>
                         </div>
                     </td>
                 </tr>
             `;
         });
-
     } catch (error) {
         console.error("Error loading questions:", error);
-        questionTableBody.innerHTML = `
-            <tr><td colspan="8" class="text-center">Error loading questions</td></tr>
-        `;
+        questionTableBody.innerHTML = `<tr><td colspan="8" class="text-center">Error loading questions</td></tr>`;
     }
 }
 
-// Edit question function (global for onclick)
-window.editQuestion = async (id) => {
-    await loadQuestionForEdit(id);
-};
-
-// Delete question function (global for onclick)
+window.editQuestion = async (id) => await loadQuestionForEdit(id);
 window.deleteQuestion = async (id) => {
     if (!confirm("Are you sure you want to delete this question permanently?")) return;
-    
     try {
         await deleteDoc(doc(db, "questions", id));
         formFeedback.textContent = "✅ Question deleted successfully";
@@ -1259,62 +1003,38 @@ window.deleteQuestion = async (id) => {
     }
 };
 
-// Search questions
 searchBtn.addEventListener("click", () => {
     currentSearchTerm = questionSearch.value.trim();
     loadQuestions(false, currentSearchTerm);
 });
-
 questionSearch.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
         currentSearchTerm = questionSearch.value.trim();
         loadQuestions(false, currentSearchTerm);
     }
 });
-
-// Load more questions
 loadMoreBtn.addEventListener("click", () => {
-    if (!currentSearchTerm) {
-        loadQuestions(true);
-    }
+    if (!currentSearchTerm) loadQuestions(true);
 });
-
-// Initial load
 loadQuestions();
 
 // ================= STUDENT MANAGEMENT =================
 
-/**
- * NEW: Reusable function to update a student's plan.
- * @param {string} userId - The Firestore user document ID.
- * @param {string} newPlan - The new plan value: 'free', 'paid', or 'unlimited'.
- */
 window.updateUserPlan = async (userId, newPlan) => {
-    // Confirm action
     const planDisplay = newPlan === 'free' ? 'Free' : (newPlan === 'paid' ? 'Paid' : 'Unlimited');
     if (!confirm(`Are you sure you want to set this student's plan to ${planDisplay}?`)) return;
-
     try {
-        const updateData = {
-            plan: newPlan,
-            lastUpdated: serverTimestamp()
-        };
-
-        // If setting to paid, also update subscriptionDate (optional)
+        const updateData = { plan: newPlan, lastUpdated: serverTimestamp() };
         if (newPlan === 'paid') {
             updateData.subscriptionDate = serverTimestamp();
             updateData.subscriptionStatus = 'paid_tier';
         } else if (newPlan === 'free') {
-            updateData.subscriptionDate = null; // optional
+            updateData.subscriptionDate = null;
             updateData.subscriptionStatus = 'free_tier';
         } else if (newPlan === 'unlimited') {
-            updateData.subscriptionStatus = 'unlimited'; // custom status
-            // Optionally set an unlimited flag
+            updateData.subscriptionStatus = 'unlimited';
         }
-
         await updateDoc(doc(db, "users", userId), updateData);
-
-        // Show success feedback
         const feedbackDiv = document.createElement("div");
         feedbackDiv.className = `feedback-message success`;
         feedbackDiv.textContent = `✅ Student plan updated to ${planDisplay} successfully`;
@@ -1323,14 +1043,10 @@ window.updateUserPlan = async (userId, newPlan) => {
         feedbackDiv.style.right = "20px";
         feedbackDiv.style.zIndex = "1000";
         document.body.appendChild(feedbackDiv);
-
         setTimeout(() => feedbackDiv.remove(), 3000);
-
-        // Reload students to reflect changes
         loadStudents();
     } catch (error) {
         console.error(`Error updating student plan:`, error);
-
         const feedbackDiv = document.createElement("div");
         feedbackDiv.className = `feedback-message error`;
         feedbackDiv.textContent = `❌ Failed to update student plan`;
@@ -1339,16 +1055,10 @@ window.updateUserPlan = async (userId, newPlan) => {
         feedbackDiv.style.right = "20px";
         feedbackDiv.style.zIndex = "1000";
         document.body.appendChild(feedbackDiv);
-
         setTimeout(() => feedbackDiv.remove(), 3000);
     }
 };
 
-/**
- * NEW: Get test count for a user by querying test_results collection.
- * @param {string} userId - The user ID.
- * @returns {Promise<number>} The number of test results for that user.
- */
 async function getTestCount(userId) {
     try {
         const q = query(collection(db, "test_results"), where("userId", "==", userId));
@@ -1356,86 +1066,84 @@ async function getTestCount(userId) {
         return snapshot.size;
     } catch (error) {
         console.error(`Error fetching test count for user ${userId}:`, error);
-        return 0; // fallback
+        return 0;
     }
 }
 
-// Load student data
+// UPDATED: Load students with phone fallback and sorted by registration (newest first)
 async function loadStudents() {
     try {
         const snap = await getDocs(collection(db, "users"));
         let freeCount = 0;
-        let premiumCount = 0; // paid + unlimited? We'll count paid separately, unlimited separately maybe.
+        let premiumCount = 0;
         let unlimitedCount = 0;
 
         studentTableBody.innerHTML = "";
 
         if (snap.empty) {
-            studentTableBody.innerHTML = `
-                <tr><td colspan="9" class="text-center">No students found</td></tr>
-            `;
+            studentTableBody.innerHTML = `<tr><td colspan="9" class="text-center">No students found</td></tr>`;
             totalStudents.textContent = "0";
             freePlanStudents.textContent = "0";
             premiumPlanStudents.textContent = "0";
             return;
         }
 
-        // Prepare an array of promises to fetch test counts for each student
-        const studentPromises = [];
         const students = [];
-
         snap.forEach(docSnap => {
             const u = docSnap.data();
-            const userId = docSnap.id;
-            students.push({ id: userId, ...u });
-            studentPromises.push(getTestCount(userId));
+            students.push({ id: docSnap.id, ...u });
         });
 
-        // Wait for all test counts
+        // Sort by createdAt (newest first), missing dates last
+        students.sort((a, b) => {
+            const getTime = (user) => {
+                if (!user.createdAt) return -Infinity; // missing dates go to end
+                const date = user.createdAt.toDate ? user.createdAt.toDate() : new Date(user.createdAt);
+                return date.getTime();
+            };
+            return getTime(b) - getTime(a); // descending
+        });
+
+        const studentPromises = students.map(s => getTestCount(s.id));
         const testCounts = await Promise.all(studentPromises);
 
         students.forEach((u, index) => {
             const userId = u.id;
             const testCount = testCounts[index];
             
-            // Count plans
             if (u.plan === "free") freeCount++;
             else if (u.plan === "paid") premiumCount++;
-            else if (u.plan === "unlimited") unlimitedCount++; // count separately if needed, but we show total paid+unlimited in stats? The existing stats show Free and Premium. We can adjust to include unlimited in Premium or separate. We'll keep as original: premiumCount includes paid only, but we can also show unlimited count if desired. For now, we'll just update premiumCount to include unlimited? The stat card says "Premium Plan", so we should include both paid and unlimited as premium users. Let's include both in premiumCount.
-            if (u.plan === "unlimited") premiumCount++; // treat unlimited as premium for stats
+            else if (u.plan === "unlimited") {
+                unlimitedCount++;
+                premiumCount++;
+            }
             
-            // Format joined date
             let joinedDate = "-";
             if (u.createdAt) {
                 const date = u.createdAt.toDate ? u.createdAt.toDate() : new Date(u.createdAt);
-                joinedDate = date.toLocaleDateString('en-NG', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                });
+                joinedDate = date.toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
             }
             
-            // Format status
             const status = u.status || "active";
             const statusClass = status === "active" ? "status-active" : "status-inactive";
             
-            // Format plan badge
             const plan = u.plan || "free";
             let planClass = "plan-free";
             if (plan === "paid") planClass = "plan-paid";
             else if (plan === "unlimited") planClass = "plan-unlimited";
             const planDisplay = plan === "paid" ? "Premium" : (plan === "unlimited" ? "Unlimited" : "Free");
             
-            // Build row with three plan buttons: Make Free, Make Paid, Make Unlimited
-            // Disable the button corresponding to current plan
+            // Phone number fallback
+            const phone = u.phoneNumber || u.phone || u.mobile || "-";
+            
             studentTableBody.innerHTML += `
                 <tr>
-                    <td>${u.fullName || u.displayName || "-"}</td>
+                    <td><span class="student-name-clickable" data-userid="${userId}" style="cursor:pointer; color:#6A11CB; text-decoration:underline;">${u.fullName || u.displayName || "-"}</span></td>
                     <td>${u.email || "-"}</td>
-                    <td>${u.phoneNumber || "-"}</td>
+                    <td>${phone}</td>
                     <td><span class="plan-badge ${planClass}">${planDisplay}</span></td>
                     <td>${joinedDate}</td>
-                    <td>${testCount}</td> <!-- UPDATED: actual test count -->
+                    <td>${testCount}</td>
                     <td class="${statusClass}">${status.charAt(0).toUpperCase() + status.slice(1)}</td>
                     <td>
                         <div class="action-buttons">
@@ -1471,28 +1179,19 @@ async function loadStudents() {
 
         totalStudents.textContent = snap.size;
         freePlanStudents.textContent = freeCount;
-        // premiumPlanStudents now includes both paid and unlimited
         premiumPlanStudents.textContent = premiumCount; 
 
     } catch (error) {
         console.error("Error loading students:", error);
-        studentTableBody.innerHTML = `
-            <tr><td colspan="9" class="text-center">Error loading students</td></tr>
-        `;
+        studentTableBody.innerHTML = `<tr><td colspan="9" class="text-center">Error loading students</td></tr>`;
     }
 }
 
-// Toggle student status (activate/deactivate)
 window.toggleStudentStatus = async (userId, newStatus) => {
     const action = newStatus === "active" ? "activate" : "deactivate";
     if (!confirm(`Are you sure you want to ${action} this student?`)) return;
-    
     try {
-        await updateDoc(doc(db, "users", userId), {
-            status: newStatus,
-            lastUpdated: serverTimestamp()
-        });
-        
+        await updateDoc(doc(db, "users", userId), { status: newStatus, lastUpdated: serverTimestamp() });
         const feedbackDiv = document.createElement("div");
         feedbackDiv.className = `feedback-message success`;
         feedbackDiv.textContent = `✅ Student ${action}d successfully`;
@@ -1501,9 +1200,7 @@ window.toggleStudentStatus = async (userId, newStatus) => {
         feedbackDiv.style.right = "20px";
         feedbackDiv.style.zIndex = "1000";
         document.body.appendChild(feedbackDiv);
-        
         setTimeout(() => feedbackDiv.remove(), 3000);
-        
         loadStudents();
     } catch (error) {
         console.error(`Error ${action}ing student:`, error);
@@ -1511,13 +1208,10 @@ window.toggleStudentStatus = async (userId, newStatus) => {
     }
 };
 
-// Delete student permanently
 window.deleteStudent = async (userId) => {
     if (!confirm("WARNING: This will permanently delete the student and all their data. Are you sure?")) return;
-    
     try {
         await deleteDoc(doc(db, "users", userId));
-        
         const feedbackDiv = document.createElement("div");
         feedbackDiv.className = `feedback-message success`;
         feedbackDiv.textContent = "✅ Student deleted successfully";
@@ -1526,9 +1220,7 @@ window.deleteStudent = async (userId) => {
         feedbackDiv.style.right = "20px";
         feedbackDiv.style.zIndex = "1000";
         document.body.appendChild(feedbackDiv);
-        
         setTimeout(() => feedbackDiv.remove(), 3000);
-        
         loadStudents();
     } catch (error) {
         console.error("Error deleting student:", error);
@@ -1536,9 +1228,337 @@ window.deleteStudent = async (userId) => {
     }
 };
 
-// Initial load of students
-loadStudents();
+// ================= STUDENT MODAL =================
 
+studentTableBody.addEventListener('click', async (e) => {
+    const target = e.target.closest('.student-name-clickable');
+    if (!target) return;
+    const userId = target.dataset.userid;
+    if (!userId) return;
+    currentEditingStudentId = userId;
+    await loadStudentDashboard(userId);
+    studentModal.classList.add('active');
+});
+
+async function loadStudentDashboard(userId) {
+    modalStudentContent.innerHTML = '<p>Loading...</p>';
+    saveStudentChanges.style.display = 'none';
+    try {
+        const userDoc = await getDoc(doc(db, "users", userId));
+        if (!userDoc.exists()) {
+            modalStudentContent.innerHTML = '<p>Student not found.</p>';
+            return;
+        }
+        const userData = userDoc.data();
+        modalStudentName.textContent = userData.fullName || userData.displayName || userData.email || 'Student';
+
+        const q = query(collection(db, "test_results"), where("userId", "==", userId), orderBy("completedAt", "desc"));
+        const snapshot = await getDocs(q);
+        const tests = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            tests.push({
+                subject: data.subjectName || data.subject || 'Test',
+                score: data.mode === 'jamb_drill' ? data.score + '/400' : data.score + '%',
+                date: data.completedAt?.toDate ? data.completedAt.toDate().toLocaleDateString() : 'N/A'
+            });
+        });
+
+        let testsHTML = tests.length ? tests.map(t => `
+            <div class="test-item">
+                <span class="test-subject">${t.subject}</span>
+                <span class="test-score">${t.score}</span>
+                <span class="test-date">${t.date}</span>
+            </div>
+        `).join('') : '<p>No tests taken yet.</p>';
+
+        modalStudentContent.innerHTML = `
+            <div class="student-info-grid">
+                <div class="info-item">
+                    <span class="info-label">Full Name</span>
+                    <span class="info-value editable-field" contenteditable="true" data-field="fullName">${userData.fullName || ''}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Email</span>
+                    <span class="info-value">${userData.email || ''}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Phone</span>
+                    <span class="info-value editable-field" contenteditable="true" data-field="phoneNumber">${userData.phoneNumber || userData.phone || userData.mobile || ''}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Plan</span>
+                    <select id="modalPlanSelect">
+                        <option value="free" ${userData.plan === 'free' ? 'selected' : ''}>Free</option>
+                        <option value="paid" ${userData.plan === 'paid' ? 'selected' : ''}>Paid</option>
+                        <option value="unlimited" ${userData.plan === 'unlimited' ? 'selected' : ''}>Unlimited</option>
+                    </select>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Status</span>
+                    <select id="modalStatusSelect">
+                        <option value="active" ${userData.status !== 'inactive' ? 'selected' : ''}>Active</option>
+                        <option value="inactive" ${userData.status === 'inactive' ? 'selected' : ''}>Inactive</option>
+                    </select>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Joined</span>
+                    <span class="info-value">${userData.createdAt?.toDate ? userData.createdAt.toDate().toLocaleDateString() : 'N/A'}</span>
+                </div>
+            </div>
+            <h4>Recent Tests</h4>
+            <div class="student-test-list">
+                ${testsHTML}
+            </div>
+        `;
+        saveStudentChanges.style.display = 'inline-flex';
+    } catch (error) {
+        console.error('Error loading student dashboard:', error);
+        modalStudentContent.innerHTML = '<p>Error loading data.</p>';
+    }
+}
+
+saveStudentChanges.addEventListener('click', async () => {
+    if (!currentEditingStudentId) return;
+    try {
+        const updates = {};
+        document.querySelectorAll('.editable-field').forEach(el => {
+            const field = el.dataset.field;
+            updates[field] = el.textContent.trim();
+        });
+        updates.plan = document.getElementById('modalPlanSelect').value;
+        updates.status = document.getElementById('modalStatusSelect').value;
+        updates.lastUpdated = serverTimestamp();
+
+        await updateDoc(doc(db, "users", currentEditingStudentId), updates);
+        alert('Student information updated successfully.');
+        studentModal.classList.remove('active');
+        loadStudents();
+    } catch (error) {
+        console.error('Error updating student:', error);
+        alert('Failed to update student.');
+    }
+});
+
+closeStudentModal.addEventListener('click', () => studentModal.classList.remove('active'));
+studentModal.addEventListener('click', (e) => { if (e.target === studentModal) studentModal.classList.remove('active'); });
+
+// ================= GLOBAL LEADERBOARD FUNCTIONS =================
+
+async function getAllUsers() {
+    const snapshot = await getDocs(collection(db, "users"));
+    const users = [];
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        users.push({
+            id: doc.id,
+            name: data.fullName || data.displayName || data.email || 'Anonymous',
+            email: data.email
+        });
+    });
+    return users;
+}
+
+async function getAllTestResults() {
+    const snapshot = await getDocs(collection(db, "test_results"));
+    const results = [];
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        let scorePercent = data.score;
+        if (data.mode === 'jamb_drill' && data.totalQuestions) {
+            scorePercent = (data.rawScore / data.totalQuestions) * 100;
+        }
+        results.push({
+            ...data,
+            id: doc.id,
+            scorePercent: Math.round(scorePercent),
+            completedAt: data.completedAt?.toDate ? data.completedAt.toDate() : new Date(data.completedAt)
+        });
+    });
+    return results;
+}
+
+async function getFullTop10ThisWeek() {
+    const users = await getAllUsers();
+    const now = new Date();
+    const sevenDaysAgo = new Date(now); sevenDaysAgo.setDate(now.getDate() - 7);
+    const leaderboard = [];
+    for (let user of users) {
+        const q = query(collection(db, "test_results"), where("userId", "==", user.id), where("completedAt", ">=", sevenDaysAgo));
+        const snapshot = await getDocs(q);
+        let totalScore = 0, count = 0;
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            let score = data.score;
+            if (data.mode === 'jamb_drill' && data.totalQuestions) score = (data.rawScore / data.totalQuestions) * 100;
+            totalScore += score;
+            count++;
+        });
+        if (count > 0) {
+            const avg = Math.round(totalScore / count);
+            leaderboard.push({ name: user.name, averageScore: avg });
+        }
+    }
+    leaderboard.sort((a,b) => b.averageScore - a.averageScore);
+    return leaderboard;
+}
+
+async function getFullTopPerSubject() {
+    const users = await getAllUsers();
+    const results = await getAllTestResults();
+    const subjectMap = {};
+    results.forEach(r => {
+        const subject = r.subjectName || r.subject || 'Unknown';
+        if (!subjectMap[subject]) subjectMap[subject] = [];
+        const user = users.find(u => u.id === r.userId);
+        const name = user ? user.name : 'Unknown';
+        subjectMap[subject].push({ name, score: r.scorePercent, userId: r.userId });
+    });
+    for (let subject in subjectMap) subjectMap[subject].sort((a,b) => b.score - a.score);
+    return subjectMap;
+}
+
+async function getFullMostImproved() {
+    const users = await getAllUsers();
+    const now = new Date();
+    const oneWeekAgo = new Date(now); oneWeekAgo.setDate(now.getDate() - 7);
+    const twoWeeksAgo = new Date(now); twoWeeksAgo.setDate(now.getDate() - 14);
+    const improvements = [];
+    for (let user of users) {
+        const thisWeekQuery = query(collection(db, "test_results"), where("userId", "==", user.id), where("completedAt", ">=", oneWeekAgo));
+        const thisWeekSnap = await getDocs(thisWeekQuery);
+        let thisWeekTotal = 0, thisWeekCount = 0;
+        thisWeekSnap.forEach(doc => {
+            const data = doc.data();
+            let score = data.score;
+            if (data.mode === 'jamb_drill' && data.totalQuestions) score = (data.rawScore / data.totalQuestions) * 100;
+            thisWeekTotal += score;
+            thisWeekCount++;
+        });
+        const thisWeekAvg = thisWeekCount > 0 ? thisWeekTotal / thisWeekCount : 0;
+
+        const lastWeekQuery = query(collection(db, "test_results"), where("userId", "==", user.id), where("completedAt", ">=", twoWeeksAgo), where("completedAt", "<", oneWeekAgo));
+        const lastWeekSnap = await getDocs(lastWeekQuery);
+        let lastWeekTotal = 0, lastWeekCount = 0;
+        lastWeekSnap.forEach(doc => {
+            const data = doc.data();
+            let score = data.score;
+            if (data.mode === 'jamb_drill' && data.totalQuestions) score = (data.rawScore / data.totalQuestions) * 100;
+            lastWeekTotal += score;
+            lastWeekCount++;
+        });
+        const lastWeekAvg = lastWeekCount > 0 ? lastWeekTotal / lastWeekCount : 0;
+
+        if (thisWeekCount > 0 && lastWeekCount > 0) {
+            const improvement = Math.round(thisWeekAvg - lastWeekAvg);
+            improvements.push({ name: user.name, improvement });
+        }
+    }
+    improvements.sort((a,b) => b.improvement - a.improvement);
+    return improvements;
+}
+
+async function getFullJambScores() {
+    const users = await getAllUsers();
+    const q = query(collection(db, "test_results"), where("mode", "==", "jamb_drill"));
+    const snapshot = await getDocs(q);
+    const scores = [];
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        const score = data.score || 0;
+        const user = users.find(u => u.id === data.userId);
+        const name = user ? user.name : 'Unknown';
+        scores.push({ name, score });
+    });
+    scores.sort((a,b) => b.score - a.score);
+    return scores;
+}
+
+async function loadAdminLeaderboard() {
+    // Guard against missing leaderboard elements
+    const top10Container = document.getElementById('adminLeaderboardTop10');
+    const subjectTabs = document.getElementById('adminSubjectTabs');
+    const topList = document.getElementById('adminTopPerSubjectList');
+    const improvedList = document.getElementById('adminMostImprovedList');
+    const jambList = document.getElementById('adminJambScoresList');
+
+    if (!top10Container || !subjectTabs || !topList || !improvedList || !jambList) {
+        console.warn('Leaderboard elements not found in DOM. Skipping load.');
+        return;
+    }
+
+    try {
+        const top10 = await getFullTop10ThisWeek();
+        if (top10.length) {
+            top10Container.innerHTML = top10.map((item, i) => `
+                <div class="leaderboard-item">
+                    <span class="rank">${i+1}</span>
+                    <span class="name">${item.name}</span>
+                    <span class="score">${item.averageScore}%</span>
+                </div>
+            `).join('');
+        } else {
+            top10Container.innerHTML = '<p class="placeholder">No data this week</p>';
+        }
+
+        const topPerSubj = await getFullTopPerSubject();
+        const subjects = Object.keys(topPerSubj);
+        if (subjects.length) {
+            subjectTabs.innerHTML = subjects.map(s => `<button class="subject-tab" data-subject="${s}">${s}</button>`).join('');
+            if (subjects.length) showAdminTopForSubject(subjects[0], topPerSubj);
+            document.querySelectorAll('#adminSubjectTabs .subject-tab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#adminSubjectTabs .subject-tab').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const subj = btn.dataset.subject;
+                    showAdminTopForSubject(subj, topPerSubj);
+                });
+            });
+        } else {
+            subjectTabs.innerHTML = '';
+            topList.innerHTML = '<p class="placeholder">No subject data</p>';
+        }
+
+        function showAdminTopForSubject(subject, data) {
+            const list = data[subject] || [];
+            topList.innerHTML = list.map((item, i) => `
+                <div class="leaderboard-item">
+                    <span class="rank">${i+1}</span>
+                    <span class="name">${item.name}</span>
+                    <span class="score">${item.score}%</span>
+                </div>
+            `).join('');
+        }
+
+        const improved = await getFullMostImproved();
+        if (improved.length) {
+            improvedList.innerHTML = improved.map((item, i) => `
+                <div class="leaderboard-item">
+                    <span class="rank">${i+1}</span>
+                    <span class="name">${item.name}</span>
+                    <span class="score">+${item.improvement}%</span>
+                </div>
+            `).join('');
+        } else {
+            improvedList.innerHTML = '<p class="placeholder">No improvement data</p>';
+        }
+
+        const jambScores = await getFullJambScores();
+        if (jambScores.length) {
+            jambList.innerHTML = jambScores.map((item, i) => `
+                <div class="leaderboard-item">
+                    <span class="rank">${i+1}</span>
+                    <span class="name">${item.name}</span>
+                    <span class="score">${item.score}/400</span>
+                </div>
+            `).join('');
+        } else {
+            jambList.innerHTML = '<p class="placeholder">No JAMB Drill scores</p>';
+        }
+    } catch (error) {
+        console.error('Error loading admin leaderboard:', error);
+    }
+}
 
 // ================= BULK DELETE BY SUBJECT =================
 const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
@@ -1547,94 +1567,67 @@ const bulkDeleteProgress = document.getElementById('bulkDeleteProgress');
 const bulkDeleteProgressFill = document.getElementById('bulkDeleteProgressFill');
 const bulkDeleteStatus = document.getElementById('bulkDeleteStatus');
 
-bulkDeleteBtn.addEventListener('click', async () => {
-  const subject = bulkDeleteSubject.value;
-  if (!subject) {
-    alert('Please select a subject.');
-    return;
-  }
-
-  // Confirmation with subject name
-  const subjectName = bulkDeleteSubject.options[bulkDeleteSubject.selectedIndex].text;
-  if (!confirm(`Are you absolutely sure you want to delete ALL questions under "${subjectName}"? This cannot be undone.`)) {
-    return;
-  }
-
-  // Double-check with a second confirmation
-  if (!confirm(`LAST WARNING: Type "DELETE" to confirm permanent deletion of all ${subjectName} questions.`)) {
-    return;
-  }
-
-  // Disable button and show progress
-  bulkDeleteBtn.disabled = true;
-  bulkDeleteProgress.style.display = 'block';
-  bulkDeleteProgressFill.style.width = '0%';
-  bulkDeleteStatus.textContent = 'Fetching questions...';
-
-  try {
-    // Query all questions with the selected subject
-    const q = query(collection(db, "questions"), where("subject", "==", subject));
-    const snapshot = await getDocs(q);
-    
-    const total = snapshot.size;
-    if (total === 0) {
-      bulkDeleteStatus.textContent = `No questions found under "${subjectName}".`;
-      bulkDeleteBtn.disabled = false;
-      return;
-    }
-
-    bulkDeleteStatus.textContent = `Found ${total} question(s). Starting deletion...`;
-
-    // Collect document references
-    const docRefs = snapshot.docs.map(doc => doc.ref);
-    
-    // Delete in batches of 500 (Firestore batch limit)
-    const BATCH_SIZE = 500;
-    let deleted = 0;
-
-    for (let i = 0; i < docRefs.length; i += BATCH_SIZE) {
-      const batch = writeBatch(db);
-      const batchRefs = docRefs.slice(i, i + BATCH_SIZE);
-      
-      batchRefs.forEach(ref => {
-        batch.delete(ref);
-      });
-
-      await batch.commit();
-      deleted += batchRefs.length;
-
-      // Update progress
-      const percent = Math.round((deleted / total) * 100);
-      bulkDeleteProgressFill.style.width = `${percent}%`;
-      bulkDeleteStatus.textContent = `Deleted ${deleted} of ${total} questions...`;
-    }
-
-    // Success
-    bulkDeleteStatus.textContent = `✅ Successfully deleted all ${total} questions under "${subjectName}".`;
-    bulkDeleteProgressFill.style.width = '100%';
-    
-    // Refresh the question list
-    loadQuestions(false, currentSearchTerm);
-    
-    // Reset after a delay
-    setTimeout(() => {
-      bulkDeleteBtn.disabled = false;
-      bulkDeleteProgress.style.display = 'none';
-      bulkDeleteSubject.value = ''; // Reset dropdown
-    }, 3000);
-
-  } catch (error) {
-    console.error("Error during bulk delete:", error);
-    bulkDeleteStatus.textContent = `❌ Error: ${error.message}`;
-    bulkDeleteBtn.disabled = false;
-  }
-});
-
-
-
+if (bulkDeleteBtn) {
+    bulkDeleteBtn.addEventListener('click', async () => {
+        const subject = bulkDeleteSubject.value;
+        if (!subject) {
+            alert('Please select a subject.');
+            return;
+        }
+        const subjectName = bulkDeleteSubject.options[bulkDeleteSubject.selectedIndex].text;
+        if (!confirm(`Are you absolutely sure you want to delete ALL questions under "${subjectName}"? This cannot be undone.`)) return;
+        if (!confirm(`LAST WARNING: Type "DELETE" to confirm permanent deletion of all ${subjectName} questions.`)) return;
+        bulkDeleteBtn.disabled = true;
+        bulkDeleteProgress.style.display = 'block';
+        bulkDeleteProgressFill.style.width = '0%';
+        bulkDeleteStatus.textContent = 'Fetching questions...';
+        try {
+            const q = query(collection(db, "questions"), where("subject", "==", subject));
+            const snapshot = await getDocs(q);
+            const total = snapshot.size;
+            if (total === 0) {
+                bulkDeleteStatus.textContent = `No questions found under "${subjectName}".`;
+                bulkDeleteBtn.disabled = false;
+                return;
+            }
+            bulkDeleteStatus.textContent = `Found ${total} question(s). Starting deletion...`;
+            const docRefs = snapshot.docs.map(doc => doc.ref);
+            const BATCH_SIZE = 500;
+            let deleted = 0;
+            for (let i = 0; i < docRefs.length; i += BATCH_SIZE) {
+                const batch = writeBatch(db);
+                const batchRefs = docRefs.slice(i, i + BATCH_SIZE);
+                batchRefs.forEach(ref => batch.delete(ref));
+                await batch.commit();
+                deleted += batchRefs.length;
+                const percent = Math.round((deleted / total) * 100);
+                bulkDeleteProgressFill.style.width = `${percent}%`;
+                bulkDeleteStatus.textContent = `Deleted ${deleted} of ${total} questions...`;
+            }
+            bulkDeleteStatus.textContent = `✅ Successfully deleted all ${total} questions under "${subjectName}".`;
+            bulkDeleteProgressFill.style.width = '100%';
+            loadQuestions(false, currentSearchTerm);
+            setTimeout(() => {
+                bulkDeleteBtn.disabled = false;
+                bulkDeleteProgress.style.display = 'none';
+                bulkDeleteSubject.value = '';
+            }, 3000);
+        } catch (error) {
+            console.error("Error during bulk delete:", error);
+            bulkDeleteStatus.textContent = `❌ Error: ${error.message}`;
+            bulkDeleteBtn.disabled = false;
+        }
+    });
+}
 
 // ================= LOGOUT =================
 logoutBtn.addEventListener("click", async () => {
     await signOut(auth);
     window.location.href = "index.html";
 });
+
+// ================= INITIAL LOAD FOR LEADERBOARD IF ACTIVE =================
+const leaderboardTab = document.querySelector('[data-tab="leaderboard"]');
+if (leaderboardTab && leaderboardTab.classList.contains('active')) {
+    loadAdminLeaderboard();
+}

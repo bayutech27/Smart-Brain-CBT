@@ -12,6 +12,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+  <!-- Chart.js for graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/dashboard.css">
 </head>
@@ -284,51 +286,95 @@
       </form>
     </section>
 
-    <!-- RECENT TESTS: QUICK TEST -->
-    <section class="recent-tests">
-      <div class="tests-header">
-        <h2><i class="fas fa-history"></i> Quick Test Recent</h2>
-        <a href="#" class="view-all" id="viewAllQuick">
-          View All <i class="fas fa-arrow-right"></i>
-        </a>
+    <!-- ========== NEW ANALYTICS SECTION ========== -->
+    <section class="analytics-section">
+      <div class="section-header">
+        <h2><i class="fas fa-chart-line"></i> Performance Analytics</h2>
+        <p class="section-subtitle">Track your progress and identify strengths</p>
       </div>
-      <div class="tests-list" id="quickTestsList">
-        <!-- Quick test items will be dynamically populated -->
-        <div class="test-item placeholder">
-          <div class="test-info">
-            <div class="test-icon">
-              <i class="fas fa-hourglass-half"></i>
-            </div>
-            <div class="test-details">
-              <h4>No Quick Tests yet</h4>
-              <p>Take your first Quick Test!</p>
+
+      <div class="analytics-grid-wrapper">
+        <div class="analytics-grid">
+          <!-- Weekly Trend Card -->
+          <div class="analytics-card">
+            <h3><i class="fas fa-calendar-week"></i> Weekly Trend (Last 7 days)</h3>
+            <div class="chart-container">
+              <canvas id="weeklyTrendChart"></canvas>
             </div>
           </div>
-          <div class="test-score">0<span class="test-percentage">%</span></div>
+
+          <!-- Monthly Trend Card -->
+          <div class="analytics-card">
+            <h3><i class="fas fa-calendar-alt"></i> Monthly Improvement</h3>
+            <div class="chart-container">
+              <canvas id="monthlyChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Average Time Per Question -->
+          <div class="analytics-card small">
+            <h3><i class="fas fa-clock"></i> Avg Time / Question</h3>
+            <div class="big-number" id="avgTimeDisplay">—</div>
+          </div>
+
+          <!-- Best Subject -->
+          <div class="analytics-card small">
+            <h3><i class="fas fa-trophy"></i> Best Subject</h3>
+            <div id="bestSubjectDisplay" class="big-number">—</div>
+            <div class="small-note" id="bestSubjectScore"></div>
+          </div>
+
+          <!-- Most Improved Topic -->
+          <div class="analytics-card small">
+            <h3><i class="fas fa-arrow-up"></i> Most Improved Topic</h3>
+            <div id="improvedTopicDisplay" class="big-number">—</div>
+            <div class="small-note" id="improvedTopicDelta"></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- RECENT TESTS: JAMB DRILL -->
-    <section class="recent-tests">
-      <div class="tests-header">
-        <h2><i class="fas fa-history"></i> JAMB Drill Recent</h2>
-        <a href="#" class="view-all" id="viewAllJamb">
-          View All <i class="fas fa-arrow-right"></i>
-        </a>
+    <!-- ========== LEADERBOARD SECTION ========== -->
+    <section class="leaderboard-section">
+      <div class="section-header">
+        <h2><i class="fas fa-ranking-star"></i> Global Leaderboard</h2>
+        <p class="section-subtitle">Compete with students worldwide</p>
       </div>
-      <div class="tests-list" id="jambDrillTestsList">
-        <div class="test-item placeholder">
-          <div class="test-info">
-            <div class="test-icon">
-              <i class="fas fa-hourglass-half"></i>
-            </div>
-            <div class="test-details">
-              <h4>No JAMB Drills yet</h4>
-              <p>Try the JAMB Drill mode!</p>
+
+      <div class="leaderboard-grid-wrapper">
+        <div class="leaderboard-grid">
+          <!-- Top 10 This Week -->
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-crown"></i> Top 10 This Week</h3>
+            <div class="leaderboard-list" id="leaderboardTop10">
+              <p class="placeholder">Loading...</p>
             </div>
           </div>
-          <div class="test-score">0<span class="test-percentage">/400</span></div>
+
+          <!-- Top Per Subject (simplified: show top in Mathematics) -->
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-book-open"></i> Top Per Subject</h3>
+            <div class="subject-tabs" id="subjectTabsLeaderboard">
+              <!-- Will be populated with subject buttons -->
+            </div>
+            <div class="leaderboard-list" id="topPerSubjectList">
+              <p class="placeholder">Select a subject</p>
+            </div>
+          </div>
+
+          <!-- Most Improved Student -->
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-chart-line"></i> Most Improved</h3>
+            <div id="mostImprovedStudent" class="big-number">—</div>
+            <div class="small-note" id="mostImprovedDelta"></div>
+          </div>
+
+          <!-- Highest JAMB Drill Score -->
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-graduation-cap"></i> Highest JAMB Drill</h3>
+            <div id="highestJambScore" class="big-number">—</div>
+            <div class="small-note" id="highestJambScoreName"></div>
+          </div>
         </div>
       </div>
     </section>

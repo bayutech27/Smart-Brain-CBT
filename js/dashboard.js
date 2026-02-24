@@ -54,8 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const completedTests = document.getElementById('completedTests');
     const averageScore = document.getElementById('averageScore');
     const performanceMessage = document.getElementById('performanceMessage');
-    const quickTestsList = document.getElementById('quickTestsList');
-    const jambDrillTestsList = document.getElementById('jambDrillTestsList');
 
     // Configuration
     const QUESTIONS_TO_FETCH = 20;
@@ -472,6 +470,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 setupJambDrillSubjects(); // populate subject checkboxes
                 updateJambDrillVisibility(); // show/hide based on plan
                 
+                // After stats are loaded (in onSnapshot), we will call the new analytics functions.
+                // We'll set up a separate call after initial stats load.
+                // For simplicity, we'll call them after a short delay to allow stats to load.
+                setTimeout(() => {
+                    loadAnalytics(userId);
+                    loadLeaderboard(); // global leaderboard, no userId needed
+                }, 1000);
+                
             } else {
                 await createDefaultUserProfile(userId);
                 loadUserData(userId);
@@ -502,7 +508,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 subscriptionDate: null,
                 planExpiredAt: null,
                 previousPlan: null,
-                lastUpgraded: null
+                lastUpgraded: null,
+                tutorialCenterId: null // optional for leaderboard
             }, { merge: true });
             
             console.log("Default user profile created");
@@ -528,7 +535,6 @@ document.addEventListener('DOMContentLoaded', () => {
         unsubscribeStats = onSnapshot(q, (snapshot) => {
             console.log("Loading dashboard stats from Firestore:", snapshot.size, "tests found");
             updateStatistics(snapshot);
-            updateRecentTestsSeparate(snapshot);
         }, (error) => {
             console.error("Error loading stats from Firestore:", error);
         });
@@ -580,100 +586,518 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateRecentTestsSeparate(snapshot) {
-        if (!quickTestsList || !jambDrillTestsList) return;
-        
-        const quickTests = [];
-        const jambTests = [];
-        
-        snapshot.forEach((doc) => {
-            const test = doc.data();
-            test.id = doc.id;
-            if (test.mode === 'jamb_drill') {
-                jambTests.push(test);
-            } else {
-                // treat missing mode as quick
-                quickTests.push(test);
+    // =============================================
+    // NEW ANALYTICS FUNCTIONS
+    // =============================================
+
+    /**
+     * Fetch user's test results for analytics.
+     * @param {string} userId 
+     * @returns {Promise<Array>} Array of test result objects with converted scores.
+     */
+    async function fetchUserTestResults(userId) {
+        const q = query(
+            collection(db, "test_results"),
+            where("userId", "==", userId),
+            orderBy("completedAt", "desc")
+        );
+        const snapshot = await getDocs(q);
+        const results = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Convert to percentage for easy handling
+            let scorePercent = data.score;
+            if (data.mode === 'jamb_drill' && data.totalQuestions) {
+                scorePercent = (data.rawScore / data.totalQuestions) * 100;
             }
+            results.push({
+                ...data,
+                id: doc.id,
+                scorePercent: Math.round(scorePercent),
+                completedAt: data.completedAt?.toDate ? data.completedAt.toDate() : new Date(data.completedAt)
+            });
         });
-        
-        renderTestList(quickTestsList, quickTests, 'quick');
-        renderTestList(jambDrillTestsList, jambTests, 'jamb');
+        return results;
     }
 
-    function renderTestList(container, tests, type) {
-        if (!container) return;
+    /**
+     * 1️⃣ Weekly Score Trend (last 7 days)
+     */
+    async function getWeeklyTrend(userId) {
+        const results = await fetchUserTestResults(userId);
+        const now = new Date();
+        const sevenDaysAgo = new Date(now);
+        sevenDaysAgo.setDate(now.getDate() - 7);
         
-        if (tests.length === 0) {
-            container.innerHTML = `
-                <div class="test-item placeholder">
-                    <div class="test-info">
-                        <div class="test-icon">
-                            <i class="fas fa-hourglass-half"></i>
-                        </div>
-                        <div class="test-details">
-                            <h4>No ${type === 'quick' ? 'Quick Tests' : 'JAMB Drills'} yet</h4>
-                            <p>Take your first ${type === 'quick' ? 'Quick Test' : 'JAMB Drill'}!</p>
-                        </div>
-                    </div>
-                    <div class="test-score">0${type === 'quick' ? '<span class="test-percentage">%</span>' : '<span class="test-percentage">/400</span>'}</div>
-                </div>
-            `;
-            return;
+        const last7Days = results.filter(r => r.completedAt >= sevenDaysAgo);
+        
+        // Group by day (YYYY-MM-DD)
+        const dayMap = new Map();
+        last7Days.forEach(r => {
+            const dateStr = r.completedAt.toISOString().split('T')[0];
+            if (!dayMap.has(dateStr)) dayMap.set(dateStr, []);
+            dayMap.get(dateStr).push(r.scorePercent);
+        });
+        
+        // Compute average per day
+        const trend = [];
+        for (let i = 0; i < 7; i++) {
+            const date = new Date(now);
+            date.setDate(now.getDate() - i);
+            const dateStr = date.toISOString().split('T')[0];
+            const scores = dayMap.get(dateStr) || [];
+            const avg = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : 0;
+            trend.push({ date: dateStr, averageScore: avg });
+        }
+        return trend.reverse(); // oldest first
+    }
+
+    /**
+     * 2️⃣ Monthly Improvement Graph (last 3-6 months)
+     */
+    async function getMonthlyTrend(userId) {
+        const results = await fetchUserTestResults(userId);
+        const now = new Date();
+        const sixMonthsAgo = new Date(now);
+        sixMonthsAgo.setMonth(now.getMonth() - 6);
+        
+        const recent = results.filter(r => r.completedAt >= sixMonthsAgo);
+        
+        // Group by month (MMM YYYY)
+        const monthMap = new Map();
+        recent.forEach(r => {
+            const monthKey = r.completedAt.toLocaleString('default', { month: 'short', year: 'numeric' });
+            if (!monthMap.has(monthKey)) monthMap.set(monthKey, []);
+            monthMap.get(monthKey).push(r.scorePercent);
+        });
+        
+        const monthly = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now);
+            d.setMonth(now.getMonth() - i);
+            const monthKey = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+            const scores = monthMap.get(monthKey) || [];
+            const avg = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : 0;
+            monthly.push({ month: monthKey, averageScore: avg });
+        }
+        return monthly;
+    }
+
+    /**
+     * 3️⃣ Average Time Per Question (seconds)
+     */
+    async function calculateAverageTime(userId) {
+        const results = await fetchUserTestResults(userId);
+        let totalTime = 0;
+        let totalQuestions = 0;
+        results.forEach(r => {
+            if (r.timeSpent && r.totalQuestions) {
+                totalTime += r.timeSpent;
+                totalQuestions += r.totalQuestions;
+            }
+        });
+        if (totalQuestions === 0) return null;
+        return (totalTime / totalQuestions).toFixed(1); // seconds per question
+    }
+
+    /**
+     * 4️⃣ Best Subject (with at least 3 attempts)
+     */
+    async function getBestSubject(userId) {
+        const results = await fetchUserTestResults(userId);
+        const subjectMap = new Map(); // subject -> { totalScore, count }
+        
+        results.forEach(r => {
+            const subject = r.subjectName || r.subject || 'Unknown';
+            if (!subjectMap.has(subject)) {
+                subjectMap.set(subject, { totalScore: 0, count: 0 });
+            }
+            const entry = subjectMap.get(subject);
+            entry.totalScore += r.scorePercent;
+            entry.count++;
+        });
+        
+        let best = null;
+        for (let [subject, data] of subjectMap.entries()) {
+            if (data.count >= 3) {
+                const avg = Math.round(data.totalScore / data.count);
+                if (!best || avg > best.avg) {
+                    best = { subject, averageScore: avg };
+                }
+            }
+        }
+        return best;
+    }
+
+    /**
+     * 5️⃣ Most Improved Topic (from cumulative topic stats)
+     */
+    async function getMostImprovedTopic(userId) {
+        try {
+            const colRef = collection(db, "users", userId, "topicCumulative");
+            const snapshot = await getDocs(colRef);
+            let best = null;
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const totalAnswered = data.totalAnswered || 0;
+                if (totalAnswered < 5) return;
+                const totalCorrect = data.totalCorrect || 0;
+                const currentAccuracy = totalAnswered > 0 ? (totalCorrect / totalAnswered) * 100 : 0;
+                const lastAccuracy = data.lastAccuracy !== undefined ? data.lastAccuracy : null;
+                if (lastAccuracy !== null) {
+                    const improvement = currentAccuracy - lastAccuracy;
+                    if (improvement > 0 && (!best || improvement > best.improvement)) {
+                        best = {
+                            topic: data.topic || 'Unknown',
+                            improvement: Math.round(improvement)
+                        };
+                    }
+                }
+            });
+            return best;
+        } catch (error) {
+            console.error("Error fetching topic stats:", error);
+            return null;
+        }
+    }
+
+    // =============================================
+    // GLOBAL LEADERBOARD FUNCTIONS
+    // =============================================
+
+    /**
+     * Get all users (with name and email) for leaderboard aggregation.
+     * @returns {Promise<Array>} Array of user objects { id, fullName, email }
+     */
+    async function getAllUsers() {
+        const snapshot = await getDocs(collection(db, "users"));
+        const users = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            users.push({
+                id: doc.id,
+                fullName: data.fullName || data.email || 'Anonymous',
+                email: data.email
+            });
+        });
+        return users;
+    }
+
+    /**
+     * 1️⃣ Top 10 This Week (global, by average score in last 7 days)
+     */
+    async function getLeaderboardTop10() {
+        const users = await getAllUsers();
+        const now = new Date();
+        const sevenDaysAgo = new Date(now);
+        sevenDaysAgo.setDate(now.getDate() - 7);
+        
+        const leaderboard = [];
+        for (let user of users) {
+            const q = query(
+                collection(db, "test_results"),
+                where("userId", "==", user.id),
+                where("completedAt", ">=", sevenDaysAgo)
+            );
+            const snapshot = await getDocs(q);
+            let totalScore = 0, count = 0;
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                let score = data.score;
+                if (data.mode === 'jamb_drill' && data.totalQuestions) {
+                    score = (data.rawScore / data.totalQuestions) * 100;
+                }
+                totalScore += score;
+                count++;
+            });
+            if (count > 0) {
+                const avg = Math.round(totalScore / count);
+                leaderboard.push({ name: user.fullName, averageScore: avg });
+            }
+        }
+        leaderboard.sort((a,b) => b.averageScore - a.averageScore);
+        return leaderboard.slice(0, 10);
+    }
+
+    /**
+     * 2️⃣ Top Per Subject (for each subject, top student globally)
+     */
+    async function getTopPerSubject() {
+        const users = await getAllUsers();
+        const subjectMap = {}; // subject -> array of { name, score }
+        
+        for (let user of users) {
+            const q = query(collection(db, "test_results"), where("userId", "==", user.id));
+            const snapshot = await getDocs(q);
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const subject = data.subjectName || data.subject || 'Unknown';
+                let score = data.score;
+                if (data.mode === 'jamb_drill' && data.totalQuestions) {
+                    score = (data.rawScore / data.totalQuestions) * 100;
+                }
+                if (!subjectMap[subject]) subjectMap[subject] = [];
+                subjectMap[subject].push({ name: user.fullName, score: Math.round(score) });
+            });
         }
         
-        container.innerHTML = '';
-        tests.slice(0, 6).forEach(test => {
-            const testItem = document.createElement('div');
-            testItem.className = 'test-item';
+        // For each subject, sort descending and take top 1
+        const topPerSubject = {};
+        for (let subject in subjectMap) {
+            const list = subjectMap[subject];
+            list.sort((a,b) => b.score - a.score);
+            topPerSubject[subject] = list.slice(0, 1); // just top 1
+        }
+        return topPerSubject;
+    }
+
+    /**
+     * 3️⃣ Most Improved Student (global, compare this week vs last week)
+     */
+    async function getMostImprovedStudent() {
+        const users = await getAllUsers();
+        const now = new Date();
+        const oneWeekAgo = new Date(now); oneWeekAgo.setDate(now.getDate() - 7);
+        const twoWeeksAgo = new Date(now); twoWeeksAgo.setDate(now.getDate() - 14);
+        
+        const improvements = [];
+        for (let user of users) {
+            // this week scores
+            const thisWeekQuery = query(
+                collection(db, "test_results"),
+                where("userId", "==", user.id),
+                where("completedAt", ">=", oneWeekAgo)
+            );
+            const thisWeekSnap = await getDocs(thisWeekQuery);
+            let thisWeekTotal = 0, thisWeekCount = 0;
+            thisWeekSnap.forEach(doc => {
+                const data = doc.data();
+                let score = data.score;
+                if (data.mode === 'jamb_drill' && data.totalQuestions) {
+                    score = (data.rawScore / data.totalQuestions) * 100;
+                }
+                thisWeekTotal += score;
+                thisWeekCount++;
+            });
+            const thisWeekAvg = thisWeekCount > 0 ? thisWeekTotal / thisWeekCount : 0;
+
+            // last week scores (between twoWeeksAgo and oneWeekAgo)
+            const lastWeekQuery = query(
+                collection(db, "test_results"),
+                where("userId", "==", user.id),
+                where("completedAt", ">=", twoWeeksAgo),
+                where("completedAt", "<", oneWeekAgo)
+            );
+            const lastWeekSnap = await getDocs(lastWeekQuery);
+            let lastWeekTotal = 0, lastWeekCount = 0;
+            lastWeekSnap.forEach(doc => {
+                const data = doc.data();
+                let score = data.score;
+                if (data.mode === 'jamb_drill' && data.totalQuestions) {
+                    score = (data.rawScore / data.totalQuestions) * 100;
+                }
+                lastWeekTotal += score;
+                lastWeekCount++;
+            });
+            const lastWeekAvg = lastWeekCount > 0 ? lastWeekTotal / lastWeekCount : 0;
+
+            if (thisWeekCount > 0 && lastWeekCount > 0) {
+                const improvement = Math.round(thisWeekAvg - lastWeekAvg);
+                if (improvement > 0) {
+                    improvements.push({ name: user.fullName, improvement });
+                }
+            }
+        }
+        improvements.sort((a,b) => b.improvement - a.improvement);
+        return improvements.slice(0, 3); // top 3
+    }
+
+    /**
+     * 4️⃣ Highest JAMB Drill Score (global)
+     */
+    async function getHighestJambScore() {
+        const users = await getAllUsers();
+        let highest = null;
+        for (let user of users) {
+            const q = query(
+                collection(db, "test_results"),
+                where("userId", "==", user.id),
+                where("mode", "==", "jamb_drill")
+            );
+            const snapshot = await getDocs(q);
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const score = data.score || 0; // this is /400
+                if (!highest || score > highest.score) {
+                    highest = {
+                        name: user.fullName,
+                        score: score
+                    };
+                }
+            });
+        }
+        return highest;
+    }
+
+    // =============================================
+    // RENDER ANALYTICS & LEADERBOARD
+    // =============================================
+
+    async function loadAnalytics(userId) {
+        try {
+            // Weekly Trend
+            const weekly = await getWeeklyTrend(userId);
+            renderWeeklyChart(weekly);
             
-            let timeAgo = 'Recently';
-            if (test.completedAt) {
-                const completedDate = test.completedAt.toDate ? 
-                    test.completedAt.toDate() : 
-                    new Date(test.completedAt);
-                timeAgo = formatTimeAgo(completedDate);
+            // Monthly Trend
+            const monthly = await getMonthlyTrend(userId);
+            renderMonthlyChart(monthly);
+            
+            // Average Time
+            const avgTime = await calculateAverageTime(userId);
+            document.getElementById('avgTimeDisplay').textContent = avgTime ? avgTime + 's' : '—';
+            
+            // Best Subject
+            const bestSubj = await getBestSubject(userId);
+            if (bestSubj) {
+                document.getElementById('bestSubjectDisplay').textContent = bestSubj.subject;
+                document.getElementById('bestSubjectScore').textContent = `${bestSubj.averageScore}% avg`;
+            } else {
+                document.getElementById('bestSubjectDisplay').textContent = '—';
+                document.getElementById('bestSubjectScore').textContent = '';
             }
             
-            let subjectDisplay = test.subjectName || test.subject || 'Test';
-            if (test.mode === 'jamb_drill' && test.subjects) {
-                subjectDisplay = test.subjects.map(s => s.name).join(', ');
+            // Most Improved Topic
+            const improvedTopic = await getMostImprovedTopic(userId);
+            if (improvedTopic) {
+                document.getElementById('improvedTopicDisplay').textContent = improvedTopic.topic;
+                document.getElementById('improvedTopicDelta').textContent = `+${improvedTopic.improvement}%`;
+            } else {
+                document.getElementById('improvedTopicDisplay').textContent = '—';
+                document.getElementById('improvedTopicDelta').textContent = '';
+            }
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+        }
+    }
+
+    async function loadLeaderboard() {
+        try {
+            // Top 10
+            const top10 = await getLeaderboardTop10();
+            const top10Container = document.getElementById('leaderboardTop10');
+            if (top10.length) {
+                top10Container.innerHTML = top10.map((item, i) => `
+                    <div class="leaderboard-item">
+                        <span class="rank">${i+1}</span>
+                        <span class="name">${item.name}</span>
+                        <span class="score">${item.averageScore}%</span>
+                    </div>
+                `).join('');
+            } else {
+                top10Container.innerHTML = '<p class="placeholder">No data this week</p>';
             }
             
-            const icon = test.mode === 'jamb_drill' ? 'graduation-cap' : 'book';
-            const scoreDisplay = test.mode === 'jamb_drill' 
-                ? `${test.score || 0}<span class="test-percentage">/400</span>`
-                : `${test.score || 0}<span class="test-percentage">%</span>`;
+            // Top Per Subject
+            const topPerSubj = await getTopPerSubject();
+            const subjectTabs = document.getElementById('subjectTabsLeaderboard');
+            const topList = document.getElementById('topPerSubjectList');
+            const subjects = Object.keys(topPerSubj);
+            if (subjects.length) {
+                subjectTabs.innerHTML = subjects.map(s => `<button class="subject-tab" data-subject="${s}">${s}</button>`).join('');
+                // Show first subject by default
+                if (subjects.length) {
+                    showTopForSubject(subjects[0], topPerSubj);
+                }
+                // Add click listeners
+                document.querySelectorAll('#subjectTabsLeaderboard .subject-tab').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const subj = btn.dataset.subject;
+                        showTopForSubject(subj, topPerSubj);
+                    });
+                });
+            } else {
+                subjectTabs.innerHTML = '';
+                topList.innerHTML = '<p class="placeholder">No subject data</p>';
+            }
             
-            testItem.innerHTML = `
-                <div class="test-info">
-                    <div class="test-icon">
-                        <i class="fas fa-${icon}"></i>
+            function showTopForSubject(subject, data) {
+                const list = data[subject] || [];
+                topList.innerHTML = list.map(item => `
+                    <div class="leaderboard-item">
+                        <span class="name">${item.name}</span>
+                        <span class="score">${item.score}%</span>
                     </div>
-                    <div class="test-details">
-                        <h4>${subjectDisplay}</h4>
-                        <p>${timeAgo}</p>
-                    </div>
-                </div>
-                <div class="test-score">${scoreDisplay}</div>
-            `;
+                `).join('');
+            }
             
-            container.appendChild(testItem);
+            // Most Improved Student
+            const improved = await getMostImprovedStudent();
+            if (improved.length) {
+                document.getElementById('mostImprovedStudent').textContent = improved[0].name;
+                document.getElementById('mostImprovedDelta').textContent = `+${improved[0].improvement}%`;
+            } else {
+                document.getElementById('mostImprovedStudent').textContent = '—';
+                document.getElementById('mostImprovedDelta').textContent = '';
+            }
+            
+            // Highest JAMB Drill
+            const highest = await getHighestJambScore();
+            if (highest) {
+                document.getElementById('highestJambScore').textContent = highest.score;
+                document.getElementById('highestJambScoreName').textContent = highest.name;
+            } else {
+                document.getElementById('highestJambScore').textContent = '—';
+                document.getElementById('highestJambScoreName').textContent = '';
+            }
+        } catch (error) {
+            console.error('Error loading leaderboard:', error);
+        }
+    }
+
+    // Chart rendering helpers
+    function renderWeeklyChart(data) {
+        const ctx = document.getElementById('weeklyTrendChart')?.getContext('2d');
+        if (!ctx) return;
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.map(d => d.date.slice(5)), // MM-DD
+                datasets: [{
+                    label: 'Avg Score %',
+                    data: data.map(d => d.averageScore),
+                    borderColor: '#6A11CB',
+                    backgroundColor: 'rgba(106,17,203,0.1)',
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
         });
     }
 
-    function formatTimeAgo(date) {
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMinutes = Math.floor(diffMs / (1000 * 60));
-        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        
-        if (diffMinutes < 1) return 'Just now';
-        if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
-        if (diffHours < 24) return `${diffHours} hours ago`;
-        if (diffDays < 7) return `${diffDays} days ago`;
-        return date.toLocaleDateString();
+    function renderMonthlyChart(data) {
+        const ctx = document.getElementById('monthlyChart')?.getContext('2d');
+        if (!ctx) return;
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.map(d => d.month),
+                datasets: [{
+                    label: 'Avg Score %',
+                    data: data.map(d => d.averageScore),
+                    backgroundColor: '#9C27B0'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
     }
 
     // =============================================
