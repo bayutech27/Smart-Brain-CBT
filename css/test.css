@@ -1,6 +1,8 @@
 /* =========================
-   TEST.CSS – LIGHT TEST AREA ON DARK BACKGROUND
-   All text black (#000000) for maximum readability
+   TEST.CSS – DARK TEST INTERFACE WITH WHITE TEXT
+   Question/options area: dark background, white text
+   Detailed solutions: dark background, white text
+   Topic/recommendations: light background, black text (for emphasis)
    Preserves all class names & layout
    ========================= */
 
@@ -8,34 +10,39 @@
    THEME VARIABLES
 ------------------------- */
 :root {
-  /* Page background – dark black */
+  /* Page background – deep black */
   --bg-page: #121212;
 
-  /* Test container – light */
-  --bg-test-container: #ffffff;
-  --bg-card: #f8f9fa;
-  --bg-elevated: #e9ecef;
-  --bg-input: #ffffff;
-  --border-light: #dee2e6;
+  /* Test container – dark */
+  --bg-test-container: #1e1e1e;
+  --bg-card: #2a2a2a;           /* question card background */
+  --bg-elevated: #3a3a3a;        /* hover states */
+  --bg-input: #2a2a2a;           /* selects, inputs */
+  --border-dark: #3a3a3a;
 
-  /* Text colors – black/dark gray */
-  --text-primary: #000000;
-  --text-secondary: #212529;
-  --text-muted: #6c757d;
+  /* Text colors – pure white for primary, light gray for secondary */
+  --text-primary: #ffffff;
+  --text-secondary: #f0f0f0;      /* even lighter for better visibility */
+  --text-muted: #cccccc;
 
-  /* Accent colors – for buttons, highlights */
-  --accent-blue: #0d6efd;
-  --accent-blue-light: #3d8bfd;
-  --accent-green: #198754;
-  --accent-green-light: #2b9c6b;
-  --accent-yellow: #ffc107;
-  --accent-red: #dc3545;
-  --accent-purple: #6f42c1;
+  /* Light section variables (for topic/recommendations) */
+  --light-bg: #f8f9fa;
+  --light-text: #000000;
+  --light-border: #dee2e6;
+
+  /* Accent colors – bright for dark background */
+  --accent-blue: #5a8dee;
+  --accent-blue-light: #7aa5f5;
+  --accent-green: #4caf7f;
+  --accent-green-light: #6bc99c;
+  --accent-yellow: #e6b85c;
+  --accent-red: #e57373;
+  --accent-purple: #a58bd6;
 
   /* Shadows */
-  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.15);
-  --shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.7);
+  --shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.8);
 
   /* Spacing */
   --radius: 16px;
@@ -60,11 +67,11 @@
   border-radius: var(--radius);
   padding: 20px;
   box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
   color: var(--text-primary);
 }
 
-/* All headings inside test container inherit black text */
+/* All headings inside test container inherit white text */
 .test-container h1,
 .test-container h2,
 .test-container h3,
@@ -83,7 +90,7 @@
   gap: 15px;
   margin-bottom: 20px;
   padding-bottom: 15px;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-dark);
 }
 
 .test-info h2 {
@@ -107,7 +114,7 @@
   color: var(--text-secondary);
   display: inline-block;
   margin-top: 5px;
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
 }
 
 .timer-container {
@@ -145,18 +152,18 @@
   border-radius: var(--radius-sm);
   padding: 15px;
   margin-bottom: 20px;
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
 }
 
 .question-content {
   margin-bottom: 20px;
 }
 
-/* Question text – black */
+/* Question text – pure white */
 #questionText,
 .question-text,
 .question-text-content {
-  color: var(--text-primary);
+  color: #f8f9fa;
   font-size: 16px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -175,7 +182,7 @@
   border-radius: 6px;
   object-fit: contain;
   box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
 }
 
 .image-label {
@@ -197,7 +204,7 @@
 
 .option {
   background-color: var(--bg-test-container);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
   border-radius: 6px;
   padding: 12px;
   margin-bottom: 8px;
@@ -216,7 +223,7 @@
 
 .option.selected {
   border-color: var(--accent-blue);
-  background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(13, 110, 253, 0.05));
+  background: linear-gradient(135deg, rgba(90, 141, 238, 0.2), rgba(90, 141, 238, 0.1));
   color: var(--text-primary);
   font-weight: 500;
 }
@@ -225,7 +232,7 @@
   width: 30px;
   height: 30px;
   background: var(--accent-blue);
-  color: #ffffff; /* white for contrast on blue */
+  color: var(--text-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -246,7 +253,7 @@
   flex: 1;
   font-size: 15px;
   line-height: 1.4;
-  color: var(--text-primary); /* black */
+  color: var(--text-primary); /* pure white */
 }
 
 /* -------------------------
@@ -329,7 +336,7 @@
   transition: var(--transition);
   background-color: var(--bg-elevated);
   color: var(--text-primary);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
 }
 
 .prev-btn {
@@ -338,19 +345,19 @@
 
 .prev-btn:hover:not(:disabled) {
   background-color: var(--text-muted);
-  color: white;
+  color: #000;
   transform: translateY(-2px);
   box-shadow: var(--shadow-sm);
 }
 
 .next-btn {
-  background: linear-gradient(135deg, var(--accent-blue), #0b5ed7);
-  color: white;
-  border: 1px solid rgba(0,0,0,0.1);
+  background: linear-gradient(135deg, var(--accent-blue), #3a5f9e);
+  color: var(--text-primary);
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 .next-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0b5ed7, var(--accent-blue));
+  background: linear-gradient(135deg, #3a5f9e, var(--accent-blue));
   transform: translateY(-2px);
   box-shadow: var(--shadow-hover);
 }
@@ -362,8 +369,8 @@
 
 .get-result-btn {
   padding: 14px;
-  background: linear-gradient(135deg, var(--accent-green), #146c43);
-  color: white;
+  background: linear-gradient(135deg, var(--accent-green), #2e7d5a);
+  color: var(--text-primary);
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -375,11 +382,11 @@
   gap: 8px;
   transition: var(--transition);
   width: 100%;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 .get-result-btn:hover {
-  background: linear-gradient(135deg, #146c43, var(--accent-green));
+  background: linear-gradient(135deg, #2e7d5a, var(--accent-green));
   transform: translateY(-2px);
   box-shadow: var(--shadow-hover);
 }
@@ -397,13 +404,13 @@
   flex-wrap: wrap;
   margin-bottom: 20px;
   padding: 5px 0;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-dark);
 }
 
 .subject-tab {
   padding: 8px 16px;
   background: var(--bg-card);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
   border-radius: 20px;
   font-size: 14px;
   font-weight: 500;
@@ -421,7 +428,7 @@
 
 .subject-tab.active {
   background: var(--accent-blue);
-  color: white;
+  color: var(--text-primary);
   border-color: var(--accent-blue);
 }
 
@@ -461,7 +468,7 @@
   width: 100%;
   text-align: center;
   box-shadow: var(--shadow-hover);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
   animation: modalSlideIn 0.3s ease-out;
   color: var(--text-primary);
 }
@@ -486,12 +493,12 @@
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-blue), #0b5ed7);
+  background: linear-gradient(135deg, var(--accent-blue), #3a5f9e);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 15px;
-  color: white;
+  color: var(--text-primary);
   font-weight: bold;
   box-shadow: var(--shadow-md);
   animation: pulseScore 2s infinite;
@@ -524,17 +531,18 @@
 }
 
 /* ===== TOPIC PERFORMANCE, RECOMMENDATIONS, SUBJECT BREAKDOWN ===== */
+/* Light background with black text for emphasis */
 #subjectBreakdown,
 #topicBreakdownContainer,
 #recommendationsContainer {
-  background: var(--bg-card);
+  background: var(--light-bg);
   border-radius: var(--radius-sm);
   padding: 15px;
   margin: 15px 0;
   border-left: 4px solid var(--accent-blue);
   text-align: left;
-  color: var(--text-primary);
-  border: 1px solid var(--border-light);
+  color: var(--light-text);
+  border: 1px solid var(--light-border);
 }
 
 #subjectBreakdown strong,
@@ -550,14 +558,14 @@
 #subjectBreakdownList,
 #topicBreakdownList,
 #recommendationsList {
-  color: var(--text-primary);
+  color: var(--light-text);
 }
 
 #subjectBreakdownList div,
 #topicBreakdownList div {
   padding: 5px 0;
-  border-bottom: 1px dashed var(--border-light);
-  color: var(--text-primary);
+  border-bottom: 1px dashed var(--light-border);
+  color: var(--light-text);
 }
 
 #subjectBreakdownList div:last-child,
@@ -569,15 +577,15 @@
   margin: 8px 0 0 20px;
   padding-left: 0;
   list-style-type: disc;
-  color: var(--text-primary);
+  color: var(--light-text);
 }
 
 #recommendationsList li {
-  color: var(--text-primary);
+  color: var(--light-text);
 }
 
 #premiumNotification {
-  background: rgba(255, 193, 7, 0.1);
+  background: rgba(230, 184, 92, 0.1);
   padding: 15px;
   border-radius: var(--radius-sm);
   margin: 20px 0;
@@ -607,17 +615,17 @@
   gap: 8px;
   background: var(--bg-elevated);
   color: var(--text-primary);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
 }
 
 #solutionBtn {
-  background: linear-gradient(135deg, var(--accent-blue), #0b5ed7);
-  color: white;
-  border: 1px solid rgba(0,0,0,0.1);
+  background: linear-gradient(135deg, var(--accent-blue), #3a5f9e);
+  color: var(--text-primary);
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 #solutionBtn:hover:not(.disabled) {
-  background: linear-gradient(135deg, #0b5ed7, var(--accent-blue));
+  background: linear-gradient(135deg, #3a5f9e, var(--accent-blue));
   transform: translateY(-2px);
   box-shadow: var(--shadow-hover);
 }
@@ -626,23 +634,24 @@
   background: var(--text-muted);
   cursor: not-allowed;
   opacity: 0.6;
-  color: white;
+  color: #000;
 }
 
 #backToDashboard {
   background: var(--bg-elevated);
   color: var(--text-primary);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
 }
 
 #backToDashboard:hover {
   background: var(--accent-blue);
-  color: white;
+  color: var(--text-primary);
   transform: translateY(-2px);
   box-shadow: var(--shadow-hover);
 }
 
 /* ===== SOLUTION MODAL ===== */
+/* Dark background with pure white text everywhere */
 #solutionModal .modal-content {
   max-width: 800px;
   max-height: 80vh;
@@ -658,7 +667,7 @@
   align-items: center;
   margin-bottom: 20px;
   padding-bottom: 15px;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-dark);
 }
 
 .modal-header h3 {
@@ -693,7 +702,7 @@
   margin-bottom: 15px;
   border-left: 4px solid var(--accent-blue);
   box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
   color: var(--text-primary);
 }
 
@@ -706,13 +715,14 @@
   gap: 10px;
 }
 
+/* All text inside solution modal should be pure white except accent colors */
 .solution-options {
   background: var(--bg-test-container);
   padding: 15px;
   border-radius: 6px;
   margin: 15px 0;
-  border: 1px solid var(--border-light);
-  color: var(--text-primary);
+  border: 1px solid var(--border-dark);
+  color: var(--text-primary); /* changed to pure white */
 }
 
 .option-correct {
@@ -745,9 +755,9 @@
   line-height: 1.6 !important;
   color: var(--text-primary) !important;
   padding: 12px !important;
-  background: var(--bg-test-container) !important;
+  background: var(--bg-card) !important;
   border-radius: 6px !important;
-  border: 1px solid var(--border-light) !important;
+  border: 1px solid var(--border-dark) !important;
   margin: 10px 0 !important;
   font-size: 14px !important;
 }
@@ -763,7 +773,7 @@
   border-radius: 6px;
   object-fit: contain;
   box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-dark);
 }
 
 /* -------------------------
