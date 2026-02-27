@@ -18,7 +18,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
 // =============================================
-// NEW: WEAKNESS DETECTION & RECOMMENDATION ENGINE
+// NEW: WEAKNESS DETECTION & RECOMMENDATION ENGINE (unchanged)
 // =============================================
 
 /**
@@ -488,7 +488,7 @@ function initializeTest() {
         return;
     }
 
-    // Display subject(s) in header
+    // Display subject(s) in header based on mode
     if (testData.mode === 'jamb_drill') {
         const subjectsList = testData.subjects.map(s => s.name).join(' + ');
         testSubject.innerHTML = `<i class="fas fa-graduation-cap"></i> JAMB Drill: ${subjectsList}`;
@@ -502,6 +502,11 @@ function initializeTest() {
         });
         // Show subject tabs
         renderSubjectTabs();
+    } else if (testData.mode === 'waec_neco') {
+        const subjectName = testData.subject ?
+            testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) :
+            'Unknown Subject';
+        testSubject.innerHTML = `<i class="fas fa-school"></i> WAEC/NECO Drill: ${subjectName}`;
     } else {
         const subjectName = testData.subject ?
             testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) :
@@ -787,7 +792,7 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
 
         const subjectName = testData.mode === 'quick'
             ? (testData.subject ? testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 'Unknown Subject')
-            : 'JAMB Drill';
+            : testData.mode === 'jamb_drill' ? 'JAMB Drill' : 'WAEC/NECO Drill';
 
         // Get user's display name
         let userName = currentUser.displayName || '';
@@ -845,8 +850,8 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
 
         showToast('✅ Test result saved successfully!', 'success');
 
-        // Increment test counts for free plan only (Quick Test)
-        if (testData.plan === 'free' && testData.mode !== 'jamb_drill') {
+        // Increment test counts for free plan only (Quick Test and WAEC/NECO)
+        if (testData.plan === 'free' && (testData.mode === 'quick' || testData.mode === 'waec_neco')) {
             await incrementTestCounts();
         }
 
@@ -860,7 +865,7 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
 }
 
 // =============================================
-// INCREMENT TEST COUNTS (only for free quick tests)
+// INCREMENT TEST COUNTS (only for free quick tests and waec/neco)
 // =============================================
 async function incrementTestCounts() {
     try {
@@ -977,6 +982,10 @@ async function submitTest() {
             const totalQuestions = testData.totalQuestions; // 180
             finalDisplayScore = Math.round((correctAnswers / totalQuestions) * 400);
             scoreLabel.textContent = '/400 Score';
+        } else if (testData.mode === 'waec_neco') {
+            // WAEC/NECO Drill: percentage score
+            finalDisplayScore = Math.round((correctAnswers / testData.questions.length) * 100);
+            scoreLabel.textContent = '% Score';
         } else {
             // Quick Test: percentage
             finalDisplayScore = Math.round((correctAnswers / testData.questions.length) * 100);
@@ -1003,7 +1012,7 @@ async function submitTest() {
 
             // ----- FILTER BY CURRENT TEST'S SUBJECT(S) -----
             let filteredCumulativeStats = cumulativeStats;
-            if (testData.mode === 'quick') {
+            if (testData.mode === 'quick' || testData.mode === 'waec_neco') {
                 const currentSubject = testData.subject;
                 filteredCumulativeStats = cumulativeStats.filter(stat => stat.subject === currentSubject);
             } else if (testData.mode === 'jamb_drill') {
@@ -1253,7 +1262,7 @@ function showSolutionsModal(questions, userAnswers) {
             });
         });
     } else {
-        // Quick Test: just list all
+        // Quick Test or WAEC/NECO: just list all
         questions.forEach((question, index) => {
             const solutionItem = createSolutionItem(question, userAnswers[index], index + 1);
             solutionsContainer.appendChild(solutionItem);

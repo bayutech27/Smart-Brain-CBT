@@ -100,7 +100,10 @@
         <div class="premium-features">
           <span><i class="fas fa-infinity"></i> Unlimited Tests</span>
           <span><i class="fas fa-book"></i> All Subjects</span>
+          <span><i class="fas fa-graduation-cap"></i> JAMB Drill</span>
+          <span><i class="fas fa-school"></i> WAEC/NECO Drill</span>
           <span><i class="fas fa-lightbulb"></i> Detailed Solutions</span>
+          <span><i class="fas fa-book"></i> Topic Performance</span>
           <span><i class="fas fa-chart-line"></i> Performance Analytics</span>
           <span><i class="fas fa-clock"></i> 24/7 Access</span>
         </div>
@@ -186,32 +189,7 @@
       </div>
     </section>
 
-    <!-- Test Modes Instructions (2 cards) -->
-    <section class="instructions-section">
-      <div class="section-header">
-        <h2><i class="fas fa-info-circle"></i> How to Use Smart Brain CBT</h2>
-      </div>
-      
-      <div class="instructions-grid">
-        <!-- Quick Test Card -->
-        <div class="instruction-card">
-          <div class="instruction-icon">
-            <i class="fas fa-bolt"></i>
-          </div>
-          <h4>Quick Test</h4>
-          <p>20 random questions, 20 minutes, single subject. Get instant percentage score and detailed solutions (Premium). Perfect for focused practice.</p>
-        </div>
-        
-        <!-- JAMB Drill Card -->
-        <div class="instruction-card">
-          <div class="instruction-icon">
-            <i class="fas fa-graduation-cap"></i>
-          </div>
-          <h4>JAMB Drill</h4>
-          <p>4 subjects (English + 3), 120 minutes, scored /400. Switch between subjects, preserve answers, and see per‑subject breakdown. Full JAMB simulation.</p>
-        </div>
-      </div>
-    </section>
+    <!-- ⚠️ "How to Use Smart Brain CBT" section REMOVED completely -->
 
     <!-- QUICK TEST SECTION (Existing) -->
     <section class="practice-section" id="quickTestSection">
@@ -281,6 +259,29 @@
         <div style="margin-top: 20px;">
           <button type="button" id="startJambDrillBtn" class="start-test-btn" style="background: linear-gradient(135deg, #9C27B0, #6A11CB);">
             <i class="fas fa-play-circle"></i> Start JAMB Drill
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ========== NEW WAEC/NECO DRILL SECTION ========== -->
+    <section class="practice-section" id="waecNecoDrillSection">
+      <div class="section-header">
+        <h2><i class="fas fa-school"></i> WAEC/NECO Drill (50 questions, 40 mins)</h2>
+        <p class="section-subtitle">Select a subject to start practicing WAEC/NECO style questions</p>
+      </div>
+
+      <form class="practice-form" id="waecNecoDrillForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="waecNecoSubjectSelect"><i class="fas fa-book"></i> Select Subject</label>
+            <select id="waecNecoSubjectSelect" class="form-select" required>
+              <option value="" disabled selected>Choose subject</option>
+            </select>
+          </div>
+
+          <button type="button" id="startWaecNecoDrillBtn" class="start-test-btn">
+            <i class="fas fa-play-circle"></i> Start WAEC/NECO Drill
           </button>
         </div>
       </form>
