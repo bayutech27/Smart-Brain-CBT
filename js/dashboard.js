@@ -89,6 +89,36 @@ const performanceMessage = getElement('performanceMessage');
 // ========== STATE ==========
 let currentUserData = null;
 let unsubscribeStats = null;
+let expirationInterval = null;
+let isResetting = false; // lock for weekly reset
+
+// ========== HELPER: SAFE TIMESTAMP CONVERSION ==========
+function convertTimestamp(value) {
+    if (!value) return null;
+    // Firestore Timestamp with toDate()
+    if (typeof value.toDate === 'function') {
+        return value.toDate();
+    }
+    // Old format with seconds
+    if (value.seconds !== undefined) {
+        return new Date(value.seconds * 1000);
+    }
+    // ISO string or date string
+    if (typeof value === 'string') {
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) return d;
+    }
+    // milliseconds number
+    if (typeof value === 'number') {
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) return d;
+    }
+    // Already a Date object
+    if (value instanceof Date && !isNaN(value.getTime())) {
+        return value;
+    }
+    return null;
+}
 
 // ========== UTILITY FUNCTIONS ==========
 function showWelcomeBanner(userName) {
@@ -153,17 +183,18 @@ function showLoadingState(show, button) {
 
 // ========== FIREBASE USER & PLAN MANAGEMENT ==========
 async function checkAndResetTestCount(userId, userData) {
+    // Prevent concurrent resets
+    if (isResetting) return;
     if (userData.plan !== 'free') return;
+
     try {
-        let lastReset = userData.lastTestResetDate;
-        if (lastReset && typeof lastReset.toDate === 'function') {
-            lastReset = lastReset.toDate();
-        } else if (lastReset && lastReset.seconds) {
-            lastReset = new Date(lastReset.seconds * 1000);
-        } else if (lastReset && typeof lastReset === 'string') {
-            lastReset = new Date(lastReset);
-        }
+        isResetting = true;
+
+        // Safely convert last reset date
+        const lastReset = convertTimestamp(userData.lastTestResetDate);
         const now = new Date();
+
+        // If no lastReset, initialize it
         if (!lastReset) {
             const userRef = doc(db, "users", userId);
             await updateDoc(userRef, {
@@ -176,6 +207,8 @@ async function checkAndResetTestCount(userId, userData) {
             }
             return;
         }
+
+        // Calculate full days passed
         const daysDiff = Math.floor((now - lastReset) / (1000 * 60 * 60 * 24));
         if (daysDiff >= 7) {
             const userRef = doc(db, "users", userId);
@@ -191,25 +224,22 @@ async function checkAndResetTestCount(userId, userData) {
         }
     } catch (error) {
         console.error("Error resetting test count:", error);
+    } finally {
+        isResetting = false;
     }
 }
 
 async function checkPlanExpiration(userId, userData) {
     if (userData.plan !== 'paid') return false;
     try {
-        let subscriptionDate = userData.subscriptionDate;
-        if (subscriptionDate && typeof subscriptionDate.toDate === 'function') {
-            subscriptionDate = subscriptionDate.toDate();
-        } else if (subscriptionDate && subscriptionDate.seconds) {
-            subscriptionDate = new Date(subscriptionDate.seconds * 1000);
-        } else if (subscriptionDate && typeof subscriptionDate === 'string') {
-            subscriptionDate = new Date(subscriptionDate);
-        }
+        const subscriptionDate = convertTimestamp(userData.subscriptionDate);
         if (!subscriptionDate) {
+            // No subscription date, treat as free? Possibly set it now.
             const userRef = doc(db, "users", userId);
             await updateDoc(userRef, { subscriptionDate: serverTimestamp() });
             return false;
         }
+
         const now = new Date();
         const daysSinceSubscription = Math.floor((now - subscriptionDate) / (1000 * 60 * 60 * 24));
         if (daysSinceSubscription >= PREMIUM_PLAN_DURATION_DAYS) {
@@ -222,6 +252,8 @@ async function checkPlanExpiration(userId, userData) {
                 testsTakenThisWeek: 0,
                 lastTestResetDate: serverTimestamp()
             });
+
+            // Refresh local user data after expiration
             if (currentUserData) {
                 currentUserData.plan = 'free';
                 currentUserData.subscriptionDate = null;
@@ -230,6 +262,7 @@ async function checkPlanExpiration(userId, userData) {
                 currentUserData.testsTakenThisWeek = 0;
                 currentUserData.lastTestResetDate = now;
             }
+
             showExpirationNotice();
             return true;
         }
@@ -317,18 +350,21 @@ async function upgradeToPremium() {
             previousPlan: 'free',
             lastUpgraded: serverTimestamp()
         });
-        if (currentUserData) {
-            currentUserData.plan = 'paid';
-            currentUserData.subscriptionDate = new Date();
-            currentUserData.previousPlan = 'free';
-            updateUIForPlan();
-            showPremiumBanner();
-            setupSubjectDropdown();
-            setupJambDrillSubjects();
-            populateWaecNecoSubjects();
-            updateJambDrillVisibility();
-            updateWaecNecoVisibility();
+
+        // Re-fetch the updated document to get accurate server timestamps
+        const updatedSnap = await getDoc(userRef);
+        if (updatedSnap.exists()) {
+            currentUserData = updatedSnap.data();
         }
+
+        updateUIForPlan();
+        showPremiumBanner();
+        setupSubjectDropdown();
+        setupJambDrillSubjects();
+        populateWaecNecoSubjects();
+        updateJambDrillVisibility();
+        updateWaecNecoVisibility();
+
         alert(`🎉 Congratulations! You are now a Premium member!\n\n✅ Unlimited tests for all subjects\n✅ Detailed solutions unlocked\n✅ JAMB Drill access\n✅ WAEC/NECO Drill access\n✅ Premium status for 30 days`);
         if (upgradeBtn) {
             upgradeBtn.innerHTML = '<i class="fas fa-rocket"></i> UPGRADE NOW';
@@ -376,6 +412,9 @@ async function loadUserData(userId) {
                 loadAnalytics(userId);
                 loadLeaderboard();
             }, 1000);
+
+            // Start background expiration monitor (every hour)
+            startExpirationMonitor(userId);
         } else {
             await createDefaultUserProfile(userId);
             loadUserData(userId);
@@ -383,6 +422,14 @@ async function loadUserData(userId) {
     } catch (error) {
         console.error('Error loading user data:', error);
     }
+}
+
+function startExpirationMonitor(userId) {
+    if (expirationInterval) clearInterval(expirationInterval);
+    expirationInterval = setInterval(async () => {
+        if (!auth.currentUser || !currentUserData) return;
+        await checkPlanExpiration(userId, currentUserData);
+    }, 60 * 60 * 1000); // 1 hour
 }
 
 async function createDefaultUserProfile(userId) {
@@ -907,13 +954,8 @@ function updateUIForPlan() {
 
     let daysRemaining = 0;
     if (isPaidPlan && currentUserData.subscriptionDate) {
-        let subscriptionDate = currentUserData.subscriptionDate;
-        if (subscriptionDate && typeof subscriptionDate.toDate === 'function') {
-            subscriptionDate = subscriptionDate.toDate();
-        } else if (subscriptionDate && subscriptionDate.seconds) {
-            subscriptionDate = new Date(subscriptionDate.seconds * 1000);
-        }
-        if (subscriptionDate && subscriptionDate instanceof Date) {
+        const subscriptionDate = convertTimestamp(currentUserData.subscriptionDate);
+        if (subscriptionDate) {
             const now = new Date();
             const daysSinceSubscription = Math.floor((now - subscriptionDate) / (1000 * 60 * 60 * 24));
             daysRemaining = Math.max(0, PREMIUM_PLAN_DURATION_DAYS - daysSinceSubscription);
@@ -922,12 +964,7 @@ function updateUIForPlan() {
 
     let daysUntilReset = 7;
     if (isFreePlan && currentUserData.lastTestResetDate) {
-        let lastReset = currentUserData.lastTestResetDate;
-        if (lastReset && typeof lastReset.toDate === 'function') {
-            lastReset = lastReset.toDate();
-        } else if (lastReset && lastReset.seconds) {
-            lastReset = new Date(lastReset.seconds * 1000);
-        }
+        const lastReset = convertTimestamp(currentUserData.lastTestResetDate);
         if (lastReset) {
             const now = new Date();
             const daysSinceReset = Math.floor((now - lastReset) / (1000 * 60 * 60 * 24));
@@ -1100,15 +1137,11 @@ async function validateQuickTestStart() {
     const testsTakenThisWeek = currentUserData.testsTakenThisWeek || 0;
     if (testsTakenThisWeek >= FREE_PLAN_WEEKLY_LIMIT) {
         let daysUntilReset = 7;
-        let lastReset = currentUserData.lastTestResetDate;
+        const lastReset = convertTimestamp(currentUserData.lastTestResetDate);
         if (lastReset) {
-            if (lastReset && typeof lastReset.toDate === 'function') lastReset = lastReset.toDate();
-            else if (lastReset && lastReset.seconds) lastReset = new Date(lastReset.seconds * 1000);
-            if (lastReset) {
-                const now = new Date();
-                const daysSinceReset = Math.floor((now - lastReset) / (1000 * 60 * 60 * 24));
-                daysUntilReset = 7 - daysSinceReset;
-            }
+            const now = new Date();
+            const daysSinceReset = Math.floor((now - lastReset) / (1000 * 60 * 60 * 24));
+            daysUntilReset = 7 - daysSinceReset;
         }
         return {
             valid: false,
@@ -1468,8 +1501,12 @@ function setDefaultProfileImage() {
 function initDashboard() {
     console.log("Dashboard initializing...");
     onAuthStateChanged(auth, (user) => {
-        if (!user) window.location.href = 'index.html';
-        else loadUserData(user.uid);
+        if (!user) {
+            if (expirationInterval) clearInterval(expirationInterval);
+            window.location.href = 'index.html';
+        } else {
+            loadUserData(user.uid);
+        }
     });
 
     // Event listeners (only for buttons, NOT for upgrade links inside notices)
@@ -1479,6 +1516,7 @@ function initDashboard() {
     if (logoutBtn) logoutBtn.addEventListener('click', async () => {
         try {
             if (unsubscribeStats) unsubscribeStats();
+            if (expirationInterval) clearInterval(expirationInterval);
             await signOut(auth);
             window.location.href = 'index.html';
         } catch (error) {
