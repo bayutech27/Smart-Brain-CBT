@@ -45,7 +45,11 @@ const ALL_SUBJECTS = [
     { value: 'commerce', name: 'Commerce' },
     { value: 'biology', name: 'Biology' },
     { value: 'economics', name: 'Economics' },
-    { value: 'crk', name: 'Christian Religious Knowledge (CRK)' }
+    { value: 'crk', name: 'Christian Religious Knowledge (CRK)' },
+    { value: 'civic', name: 'Civic Education' },
+    { value: 'geography', name: 'Geography' },
+    { value: 'ict', name: 'ICT (Computer Studies)' },
+    { value: 'marketing', name: 'Marketing' },
 ];
 
 // ========== DOM ELEMENTS (with null checks) ==========
