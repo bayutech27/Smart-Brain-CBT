@@ -12,7 +12,8 @@ import {
     increment,
     serverTimestamp,
     onSnapshot,
-    setDoc
+    setDoc,
+    limit
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
 import { 
@@ -46,11 +47,14 @@ const ALL_SUBJECTS = [
     { value: 'biology', name: 'Biology' },
     { value: 'economics', name: 'Economics' },
     { value: 'crk', name: 'Christian Religious Knowledge (CRK)' },
+    // New premium subjects
     { value: 'civic', name: 'Civic Education' },
     { value: 'geography', name: 'Geography' },
     { value: 'ict', name: 'ICT (Computer Studies)' },
     { value: 'marketing', name: 'Marketing' },
+    { value: 'agric science', name: 'Agricultural Science'}
 ];
+
 
 // ========== DOM ELEMENTS (with null checks) ==========
 const getElement = (id) => document.getElementById(id);
@@ -412,6 +416,8 @@ async function loadUserData(userId) {
             populateWaecNecoSubjects();
             updateJambDrillVisibility();
             updateWaecNecoVisibility();
+            // Load recent tests
+            loadRecentTests(userId);
             setTimeout(() => {
                 loadAnalytics(userId);
                 loadLeaderboard();
@@ -509,6 +515,202 @@ function updateStatistics(snapshot) {
     else if (average >= 70) message = "Good work!";
     else if (average >= 60) message = "Keep improving!";
     if (performanceMessage) performanceMessage.textContent = message;
+}
+
+// ========== RECENT TESTS (Enhanced) ==========
+let unsubscribeRecentTests = null;
+
+function loadRecentTests(userId) {
+    if (unsubscribeRecentTests) {
+        unsubscribeRecentTests();
+    }
+
+    const recentTestsList = document.getElementById('recentTestsList');
+    if (!recentTestsList) return;
+
+    const q = query(
+        collection(db, "test_results"),
+        where("userId", "==", userId),
+        orderBy("completedAt", "desc"),
+        limit(10)
+    );
+
+    unsubscribeRecentTests = onSnapshot(q, (snapshot) => {
+        if (snapshot.empty) {
+            recentTestsList.innerHTML = '<p class="no-tests">No tests yet. Start practicing!</p>';
+            return;
+        }
+
+        const results = [];
+        snapshot.forEach((doc) => {
+            const test = doc.data();
+            const mode = test.mode;
+            const completedAt = test.completedAt ? convertTimestamp(test.completedAt) : null;
+            const dateStr = completedAt ? completedAt.toLocaleDateString() : 'Unknown date';
+
+            let typeIcon = '';
+            let typeLabel = '';
+            let mainContent = '';
+
+            switch (mode) {
+                case 'quick':
+                    typeIcon = '<i class="fas fa-bolt"></i>';
+                    typeLabel = 'Quick Test';
+                    mainContent = renderQuickTest(test, dateStr);
+                    break;
+                case 'waec_neco':
+                    typeIcon = '<i class="fas fa-school"></i>';
+                    typeLabel = 'WAEC/NECO';
+                    mainContent = renderWaecNecoTest(test, dateStr);
+                    break;
+                case 'jamb_drill':
+                    typeIcon = '<i class="fas fa-graduation-cap"></i>';
+                    typeLabel = 'JAMB Drill';
+                    mainContent = renderJambDrillTest(test, dateStr);
+                    break;
+                default:
+                    typeIcon = '<i class="fas fa-pencil-alt"></i>';
+                    typeLabel = 'Test';
+                    mainContent = renderUnknownTest(test, dateStr);
+            }
+
+            results.push(`
+                <div class="recent-test-item">
+                    <div class="test-header">
+                        <div class="test-type-badge" title="${typeLabel}">${typeIcon}</div>
+                        <div class="test-date">${escapeHtml(dateStr)}</div>
+                    </div>
+                    ${mainContent}
+                </div>
+            `);
+        });
+
+        recentTestsList.innerHTML = results.join('');
+    }, (error) => {
+        console.error("Error loading recent tests:", error);
+        if (recentTestsList) {
+            recentTestsList.innerHTML = '<p class="error">Error loading recent tests. Please refresh.</p>';
+        }
+    });
+}
+
+function renderQuickTest(test, dateStr) {
+    const subject = test.subjectName || test.subject || 'Unknown';
+    const rawScore = test.rawScore !== undefined ? test.rawScore : 0;
+    const total = test.totalQuestions || 0;
+    const scoreText = total > 0 ? `${rawScore}/${total}` : 'N/A';
+    return `
+        <div class="test-main">
+            <div class="test-subject">${escapeHtml(subject)}</div>
+            <div class="test-score">Score: <strong>${scoreText}</strong></div>
+        </div>
+    `;
+}
+
+function renderWaecNecoTest(test, dateStr) {
+    const subject = test.subjectName || test.subject || 'Unknown';
+    const subjectScores = test.subjectScores || {};
+    const totalRaw = test.rawScore !== undefined ? test.rawScore : 0;
+    const totalQuestions = test.totalQuestions || 0;
+
+    let subjectRow = '';
+
+    // If per-subject scores exist, display them
+    if (Object.keys(subjectScores).length > 0) {
+        // For WAEC/NECO, there's only one subject, but we still iterate to be safe
+        for (const [subjValue, scoreObj] of Object.entries(subjectScores)) {
+            const subjName = subjValue.charAt(0).toUpperCase() + subjValue.slice(1);
+            const raw = scoreObj.correct !== undefined ? scoreObj.correct : (scoreObj.raw || 0);
+            const total = scoreObj.total || totalQuestions;
+            subjectRow += `<div class="subject-score-row"><span class="subject-name">${escapeHtml(subjName)}:</span> <span class="score-value">${raw}/${total}</span></div>`;
+        }
+    } else {
+        // Fallback to showing only total score
+        subjectRow = `<div class="subject-score-row"><span class="subject-name">Total:</span> <span class="score-value">${totalRaw}/${totalQuestions}</span></div>`;
+    }
+
+    return `
+        <div class="test-main">
+            <div class="test-subject">${escapeHtml(subject)}</div>
+            <div class="subject-scores">
+                ${subjectRow}
+            </div>
+            <div class="test-total-score">Total: <strong>${totalRaw}/${totalQuestions}</strong></div>
+        </div>
+    `;
+}
+
+function renderJambDrillTest(test, dateStr) {
+    const subjectScores = test.subjectScores || {};
+    const subjectsList = test.subjects || []; // array of { value, name, count }
+    const totalRaw = test.rawScore !== undefined ? test.rawScore : 0;
+    const totalQuestions = test.totalQuestions || 0;
+
+    let subjectRows = '';
+
+    // Build rows for each subject in the test's subjects list
+    if (subjectsList.length > 0) {
+        for (const subj of subjectsList) {
+            const subjValue = subj.value;
+            const subjName = subj.name;
+            const totalQ = subj.count || 0;
+            const scoreObj = subjectScores[subjValue] || { correct: 0, total: totalQ };
+            const raw = scoreObj.correct !== undefined ? scoreObj.correct : (scoreObj.raw || 0);
+            const total = scoreObj.total || totalQ;
+            subjectRows += `<div class="subject-score-row"><span class="subject-name">${escapeHtml(subjName)}:</span> <span class="score-value">${raw}/${total}</span></div>`;
+        }
+    } else if (Object.keys(subjectScores).length > 0) {
+        // Fallback: iterate over subjectScores if subjectsList missing
+        for (const [subjValue, scoreObj] of Object.entries(subjectScores)) {
+            const subjName = subjValue.charAt(0).toUpperCase() + subjValue.slice(1);
+            const raw = scoreObj.correct !== undefined ? scoreObj.correct : (scoreObj.raw || 0);
+            const total = scoreObj.total || 0;
+            subjectRows += `<div class="subject-score-row"><span class="subject-name">${escapeHtml(subjName)}:</span> <span class="score-value">${raw}/${total}</span></div>`;
+        }
+    } else {
+        // No subject data, show only total
+        subjectRows = `<div class="subject-score-row"><span class="subject-name">Total:</span> <span class="score-value">${totalRaw}/${totalQuestions}</span></div>`;
+    }
+
+    // Compute total possible (sum of counts from subjectsList)
+    let totalPossible = 180; // default
+    if (subjectsList.length) {
+        totalPossible = subjectsList.reduce((sum, s) => sum + (s.count || 0), 0);
+    }
+    const totalScoreText = totalRaw && totalPossible ? `${totalRaw}/${totalPossible}` : 'N/A';
+
+    return `
+        <div class="test-main jamb-detail">
+            <div class="test-subject">JAMB Drill</div>
+            <div class="subject-scores">
+                ${subjectRows}
+            </div>
+            <div class="test-total-score">Total: <strong>${totalScoreText}</strong></div>
+        </div>
+    `;
+}
+
+function renderUnknownTest(test, dateStr) {
+    const rawScore = test.rawScore !== undefined ? test.rawScore : 0;
+    const total = test.totalQuestions || 0;
+    const scoreText = total > 0 ? `${rawScore}/${total}` : 'N/A';
+    return `
+        <div class="test-main">
+            <div class="test-subject">${escapeHtml(test.subject || 'Test')}</div>
+            <div class="test-score">Score: <strong>${scoreText}</strong></div>
+        </div>
+    `;
+}
+
+// Helper to prevent XSS
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
 // ========== ANALYTICS FUNCTIONS ==========
@@ -1521,6 +1723,7 @@ function initDashboard() {
         try {
             if (unsubscribeStats) unsubscribeStats();
             if (expirationInterval) clearInterval(expirationInterval);
+            if (unsubscribeRecentTests) unsubscribeRecentTests();
             await signOut(auth);
             window.location.href = 'index.html';
         } catch (error) {

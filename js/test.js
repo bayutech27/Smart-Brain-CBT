@@ -4,13 +4,13 @@ import {
     collection,
     addDoc,
     getDoc,
-    getDocs,          // <-- ADDED
+    getDocs,
     doc,
     updateDoc,
     increment,
     serverTimestamp,
-    writeBatch,       // <-- ADDED
-    setDoc            // <-- ADDED for cumulative updates
+    writeBatch,
+    setDoc
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
 import {
@@ -18,7 +18,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
 // =============================================
-// NEW: WEAKNESS DETECTION & RECOMMENDATION ENGINE (unchanged)
+// WEAKNESS DETECTION & RECOMMENDATION ENGINE
 // =============================================
 
 /**
@@ -28,18 +28,15 @@ import {
  * @returns {string} The topic name or 'General' if not found.
  */
 function getTopicFromQuestion(question) {
-    // First, try the most common field name 'topic'
     if (question.topic && typeof question.topic === 'string' && question.topic.trim() !== '') {
         return question.topic.trim();
     }
-    // If not, try alternative field names
     const possibleFields = ['topicName', 'category', 'subjectTopic'];
     for (const field of possibleFields) {
         if (question[field] && typeof question[field] === 'string' && question[field].trim() !== '') {
             return question[field].trim();
         }
     }
-    // No topic found – log the available keys to help debug
     console.warn('No topic field found in question. Available keys:', Object.keys(question));
     return 'General';
 }
@@ -55,10 +52,10 @@ function generateWeaknessReport(userAnswers, questions) {
 
   questions.forEach((q, index) => {
     const answer = userAnswers[index];
-    if (answer === null) return; // unanswered question – skip
+    if (answer === null) return;
 
     const subject = q.subject || 'General';
-    const topic = getTopicFromQuestion(q); // Use the improved topic extractor
+    const topic = getTopicFromQuestion(q);
     const key = `${subject}|${topic}`;
     const isCorrect = (answer === q.correctAnswer);
 
@@ -75,7 +72,6 @@ function generateWeaknessReport(userAnswers, questions) {
     if (isCorrect) record.correct += 1;
   });
 
-  // Convert map to array and calculate accuracy & level
   const topics = Array.from(topicMap.values()).map(record => {
     const accuracy = Math.round((record.correct / record.total) * 100);
     let level = 'Weak';
@@ -88,14 +84,12 @@ function generateWeaknessReport(userAnswers, questions) {
     };
   });
 
-  // Group by subject
   const subjectGroups = {};
   topics.forEach(t => {
     if (!subjectGroups[t.subject]) subjectGroups[t.subject] = [];
     subjectGroups[t.subject].push(t);
   });
 
-  // Return array of subject objects (for easy saving)
   return Object.entries(subjectGroups).map(([subject, topicList]) => ({
     subject,
     topics: topicList,
@@ -123,20 +117,14 @@ async function saveTopicStats(userId, topicStats) {
           level: topic.level,
           timestamp: serverTimestamp(),
         };
-        // Save each topic as a separate document (auto ID)
         await addDoc(collection(db, "users", userId, "topicStats"), statData);
       }
     }
     console.log("✅ Topic stats saved successfully");
   } catch (error) {
     console.error("❌ Error saving topic stats:", error);
-    // Non‑blocking – do not throw, just log
   }
 }
-
-// =============================================
-// NEW: CUMULATIVE TOPIC STATS FUNCTIONS
-// =============================================
 
 /**
  * Updates cumulative topic statistics for a user after a test.
@@ -148,7 +136,6 @@ async function updateCumulativeTopicStats(userId, topicStats) {
     if (!userId || !topicStats || topicStats.length === 0) return;
 
     try {
-        // Use a loop instead of batch because we need to read before write
         for (const subjectData of topicStats) {
             for (const topic of subjectData.topics) {
                 const sanitizedSubject = subjectData.subject.replace(/[^a-zA-Z0-9]/g, '_');
@@ -156,7 +143,6 @@ async function updateCumulativeTopicStats(userId, topicStats) {
                 const docId = `${sanitizedSubject}_${sanitizedTopic}`;
                 const docRef = doc(db, "users", userId, "topicCumulative", docId);
 
-                // Get current document (if exists)
                 const docSnap = await getDoc(docRef);
                 let previousAccuracy = null;
                 if (docSnap.exists()) {
@@ -166,29 +152,25 @@ async function updateCumulativeTopicStats(userId, topicStats) {
                     previousAccuracy = prevTotal > 0 ? Math.round((prevCorrect / prevTotal) * 100) : 0;
                 }
 
-                // Prepare update data
                 const updateData = {
                     subject: subjectData.subject,
                     topic: topic.topic,
                     totalAnswered: increment(topic.total),
                     totalCorrect: increment(topic.correct),
                     lastUpdated: serverTimestamp(),
-                    lastPracticed: serverTimestamp()   // new field
+                    lastPracticed: serverTimestamp()
                 };
 
-                // Only set lastAccuracy if we have a previous value
                 if (previousAccuracy !== null) {
                     updateData.lastAccuracy = previousAccuracy;
                 }
 
-                // Use set with merge to update
                 await setDoc(docRef, updateData, { merge: true });
             }
         }
         console.log("✅ Cumulative topic stats updated with trend info");
     } catch (error) {
         console.error("❌ Error updating cumulative topic stats:", error);
-        // Non‑blocking – just log
     }
 }
 
@@ -211,8 +193,8 @@ async function fetchCumulativeTopicStats(userId) {
                 totalAnswered: data.totalAnswered || 0,
                 totalCorrect: data.totalCorrect || 0,
                 lastUpdated: data.lastUpdated,
-                lastAccuracy: data.lastAccuracy,   // may be undefined
-                lastPracticed: data.lastPracticed  // may be undefined
+                lastAccuracy: data.lastAccuracy,
+                lastPracticed: data.lastPracticed
             });
         });
         return stats;
@@ -224,7 +206,7 @@ async function fetchCumulativeTopicStats(userId) {
 
 /**
  * Calculates weak and strong topics from cumulative stats.
- * Now includes lastAccuracy and lastPracticed for trend analysis.
+ * Includes lastAccuracy and lastPracticed for trend analysis.
  * @param {Array} cumulativeStats - Array of cumulative topic objects
  * @returns {Object} { weakTopics: Array, strongTopics: Array }
  */
@@ -243,7 +225,6 @@ function calculateCumulativeWeakness(cumulativeStats) {
             totalCorrect,
             accuracy,
             level,
-            // New fields (may be undefined)
             lastAccuracy: stat.lastAccuracy,
             lastPracticed: stat.lastPracticed ? stat.lastPracticed.toDate() : null
         };
@@ -253,7 +234,7 @@ function calculateCumulativeWeakness(cumulativeStats) {
     const sortedAsc = [...reliableTopics].sort((a, b) => a.accuracy - b.accuracy);
     const sortedDesc = [...reliableTopics].sort((a, b) => b.accuracy - a.accuracy);
 
-    const weakTopics = sortedAsc.filter(t => t.level === 'Weak').slice(0, 10); // Keep more for grouping
+    const weakTopics = sortedAsc.filter(t => t.level === 'Weak').slice(0, 10);
     const strongTopics = sortedDesc.filter(t => t.level === 'Strong').slice(0, 2);
 
     return { weakTopics, strongTopics };
@@ -270,8 +251,7 @@ function generateSmartRecommendations(weakTopics) {
         return ["Great job! Keep practicing to maintain your strengths."];
     }
 
-    // --- Helper: group topics by subject ---
-    const groupedBySubject = new Map(); // subject -> { subject, topics: [] }
+    const groupedBySubject = new Map();
     weakTopics.forEach(topic => {
         if (!groupedBySubject.has(topic.subject)) {
             groupedBySubject.set(topic.subject, { subject: topic.subject, topics: [] });
@@ -279,7 +259,6 @@ function generateSmartRecommendations(weakTopics) {
         groupedBySubject.get(topic.subject).topics.push(topic);
     });
 
-    // --- Template pools ---
     const templates = {
         critical: [
             "{topic} needs urgent attention. Start with simpler practice questions.",
@@ -313,58 +292,46 @@ function generateSmartRecommendations(weakTopics) {
         ]
     };
 
-    // --- Helper: pick random template from an array ---
     function randomTemplate(arr) {
         return arr[Math.floor(Math.random() * arr.length)];
     }
 
-    // --- Build candidate recommendations ---
     const candidates = [];
 
-    // Process each subject group
     groupedBySubject.forEach((group, subject) => {
         const topics = group.topics;
-        // If more than one topic in same subject, create a grouped recommendation
         if (topics.length >= 2) {
             const topicNames = topics.map(t => t.topic).join(', ');
-            // Use a grouped template
             let template = randomTemplate(templates.grouped);
             candidates.push(template.replace('{subject}', subject).replace('{topics}', topicNames));
         } else {
-            // Single topic – generate per‑topic recommendation with severity/trend
             const topic = topics[0];
             const accuracy = topic.accuracy;
             const lastAccuracy = topic.lastAccuracy;
             const lastPracticed = topic.lastPracticed;
 
-            // Determine severity
             let severity = accuracy < 35 ? 'critical' : 'weak';
-
-            // Determine trend (if lastAccuracy exists)
             let trend = 'stable';
             if (lastAccuracy !== undefined && lastAccuracy !== null) {
                 if (accuracy > lastAccuracy) trend = 'improving';
                 else if (accuracy < lastAccuracy) trend = 'declining';
             }
 
-            // Choose template pool based on severity and trend
             let pool;
             if (trend === 'improving') {
                 pool = templates.improving;
             } else if (trend === 'declining') {
                 pool = templates.declining;
             } else {
-                pool = templates[severity]; // critical or weak
+                pool = templates[severity];
             }
 
             let message = randomTemplate(pool).replace('{topic}', topic.topic);
 
-            // Add time‑based hint if lastPracticed > 5 days ago
             if (lastPracticed) {
                 const daysAgo = (Date.now() - lastPracticed.getTime()) / (1000 * 60 * 60 * 24);
                 if (daysAgo > 5) {
                     const timeHint = randomTemplate(templates.timeBased).replace('{topic}', topic.topic);
-                    // Append hint to message (or create separate? We'll combine for brevity)
                     message += ' ' + timeHint;
                 }
             }
@@ -373,24 +340,17 @@ function generateSmartRecommendations(weakTopics) {
         }
     });
 
-    // --- Select up to 3 unique recommendations ---
-    // Shuffle candidates to avoid always picking first ones (if many)
     const shuffled = candidates.sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, 3);
-
-    // If no candidates (should not happen), return default
     if (selected.length === 0) {
         return ["Great job! Keep practicing to maintain your strengths."];
     }
-
     return selected;
 }
 
 // =============================================
-// END NEW CODE
-// =============================================
-
 // DOM Elements
+// =============================================
 const testSubject = document.getElementById('testSubject');
 const questionCounter = document.getElementById('questionCounter');
 const currentQuestionSpan = document.getElementById('currentQuestion');
@@ -427,8 +387,8 @@ let currentQuestionIndex = 0;
 let currentUser = null;
 
 // JAMB Drill specific
-let subjectStartIndices = {}; // subject -> first question index
-let subjectCounts = {}; // subject -> number of questions
+let subjectStartIndices = {};
+let subjectCounts = {};
 
 // Initialize test page
 document.addEventListener('DOMContentLoaded', () => {
@@ -500,7 +460,6 @@ function initializeTest() {
             subjectCounts[subj.value] = count;
             idx += count;
         });
-        // Show subject tabs
         renderSubjectTabs();
     } else if (testData.mode === 'waec_neco') {
         const subjectName = testData.subject ?
@@ -546,7 +505,6 @@ function renderSubjectTabs() {
         subjectTabs.appendChild(tab);
     });
 
-    // Style the tabs
     document.querySelectorAll('.subject-tab').forEach((tab, index) => {
         tab.style.padding = '10px 20px';
         tab.style.marginRight = '5px';
@@ -657,7 +615,6 @@ function loadQuestion(index) {
     updateActiveDot(index);
     updateProgressBar();
 
-    // Highlight subject tab if in JAMB Drill
     if (testData.mode === 'jamb_drill' && question.subject) {
         highlightActiveSubjectTab(question.subject);
     }
@@ -794,7 +751,6 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
             ? (testData.subject ? testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 'Unknown Subject')
             : testData.mode === 'jamb_drill' ? 'JAMB Drill' : 'WAEC/NECO Drill';
 
-        // Get user's display name
         let userName = currentUser.displayName || '';
         if (!userName && currentUser.email) {
             userName = currentUser.email.split('@')[0];
@@ -803,29 +759,26 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
             userName = 'Anonymous';
         }
 
-        // Create questions array
         const questionsData = testData.questions.map((q, index) => ({
             id: q.id || `q-${index}`,
             questionText: q.questionText || "",
             hasQuestionImage: !!q.questionImage,
             correctAnswer: q.correctAnswer || "",
             userAnswer: testData.userAnswers[index] || null,
-            subject: q.subject || testData.subject // for jamb drill, each question has subject
+            subject: q.subject || testData.subject
         }));
 
-        // Create userAnswers array
         const userAnswersArray = testData.userAnswers.map(answer => answer || null);
 
-        // Build result data
         const resultData = {
             completedAt: serverTimestamp(),
             correctAnswers: correctAnswers,
-            rawScore: rawScore, // number correct
+            rawScore: rawScore,
             examType: testData.examType || "Practice",
             mode: testData.mode || 'quick',
             plan: testData.plan || 'free',
             questions: questionsData,
-            score: score, // final displayed score (percentage or /400)
+            score: score,
             subject: testData.subject || "general",
             subjectName: subjectName,
             testId: testData.testId || `test-${Date.now()}`,
@@ -836,10 +789,18 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
             userName: userName
         };
 
-        // For JAMB Drill, store subjects array and subject scores
+        // Store subject scores for both JAMB and WAEC/NECO drills
         if (testData.mode === 'jamb_drill') {
             resultData.subjects = testData.subjects;
             resultData.subjectScores = subjectScores;
+            resultData.totalRawScore = rawScore;
+            resultData.totalPossible = testData.totalQuestions;
+        } else if (testData.mode === 'waec_neco' && subjectScores) {
+            resultData.subjectScores = subjectScores;
+            // For WAEC/NECO, also store the subject name for easier querying
+            resultData.subject = testData.subject;
+            resultData.totalRawScore = rawScore;
+            resultData.totalPossible = testData.totalQuestions;
         }
 
         console.log("Saving test result to Firestore:", resultData);
@@ -850,7 +811,6 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
 
         showToast('✅ Test result saved successfully!', 'success');
 
-        // Increment test counts for free plan only (Quick Test and WAEC/NECO)
         if (testData.plan === 'free' && (testData.mode === 'quick' || testData.mode === 'waec_neco')) {
             await incrementTestCounts();
         }
@@ -865,7 +825,7 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
 }
 
 // =============================================
-// INCREMENT TEST COUNTS (only for free quick tests and waec/neco)
+// INCREMENT TEST COUNTS
 // =============================================
 async function incrementTestCounts() {
     try {
@@ -945,7 +905,6 @@ async function submitTest() {
     getResultBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculating Score...';
 
     try {
-        // Calculate raw score
         let correctAnswers = 0;
         testData.questions.forEach((question, index) => {
             const userAnswer = testData.userAnswers[index];
@@ -961,7 +920,7 @@ async function submitTest() {
         let subjectScores = null;
 
         if (testData.mode === 'jamb_drill') {
-            // Calculate per-subject scores
+            // Calculate per-subject scores for JAMB
             subjectScores = {};
             testData.subjects.forEach(subj => {
                 subjectScores[subj.value] = { correct: 0, total: subj.count };
@@ -978,39 +937,35 @@ async function submitTest() {
                 }
             });
 
-            // Scale to 400
             const totalQuestions = testData.totalQuestions; // 180
             finalDisplayScore = Math.round((correctAnswers / totalQuestions) * 400);
             scoreLabel.textContent = '/400 Score';
         } else if (testData.mode === 'waec_neco') {
-            // WAEC/NECO Drill: percentage score
+            // Calculate per-subject scores for WAEC/NECO (only one subject)
+            subjectScores = {};
+            const subjectValue = testData.subject;
+            subjectScores[subjectValue] = { correct: correctAnswers, total: testData.totalQuestions };
+
             finalDisplayScore = Math.round((correctAnswers / testData.questions.length) * 100);
             scoreLabel.textContent = '% Score';
         } else {
-            // Quick Test: percentage
+            // Quick Test: no subjectScores needed
             finalDisplayScore = Math.round((correctAnswers / testData.questions.length) * 100);
             scoreLabel.textContent = '% Score';
         }
 
-        // ===== NEW: Weakness Detection & Recommendations (Cumulative) =====
+        // Weakness Detection & Recommendations
         const topicStats = generateWeaknessReport(testData.userAnswers, testData.questions);
-
-        // 🔍 DEBUG: Log the computed topic stats
         console.log('🔍 Topic Stats:', topicStats);
 
         if (topicStats.length > 0) {
-            // Save per-test topic stats to Firestore (historical, non‑blocking)
             saveTopicStats(currentUser.uid, topicStats).catch(err =>
                 console.warn('Topic stats save failed (non‑critical):', err)
             );
-
-            // Update cumulative topic stats (await to ensure results reflect this test)
             await updateCumulativeTopicStats(currentUser.uid, topicStats);
 
-            // Fetch cumulative stats
             const cumulativeStats = await fetchCumulativeTopicStats(currentUser.uid);
 
-            // ----- FILTER BY CURRENT TEST'S SUBJECT(S) -----
             let filteredCumulativeStats = cumulativeStats;
             if (testData.mode === 'quick' || testData.mode === 'waec_neco') {
                 const currentSubject = testData.subject;
@@ -1019,15 +974,10 @@ async function submitTest() {
                 const subjectValues = testData.subjects.map(s => s.value);
                 filteredCumulativeStats = cumulativeStats.filter(stat => subjectValues.includes(stat.subject));
             }
-            // ------------------------------------------------
 
-            // Calculate weak & strong topics
             const { weakTopics, strongTopics } = calculateCumulativeWeakness(filteredCumulativeStats);
-
-            // Generate recommendations
             const recommendations = generateSmartRecommendations(weakTopics);
 
-            // Store in testData for display
             testData.weakTopics = weakTopics;
             testData.strongTopics = strongTopics;
             testData.recommendations = recommendations;
@@ -1039,14 +989,12 @@ async function submitTest() {
             console.warn('No topic stats generated – check if questions have subject/topic fields.');
             testData.recommendations = [];
         }
-        // ===== END NEW CODE =====
 
         console.log(`Score calculated: ${finalDisplayScore} (${correctAnswers}/${testData.questions.length})`);
 
-        // Save to Firestore
+        // Save to Firestore with per-subject scores
         await saveTestResultToFirestore(finalDisplayScore, correctAnswers, correctAnswers, subjectScores);
 
-        // Generate performance message (we will hide it later)
         let message = "";
         if (testData.mode === 'jamb_drill') {
             const percent = (correctAnswers / testData.questions.length) * 100;
@@ -1062,7 +1010,6 @@ async function submitTest() {
             else message = "Keep practicing! You'll improve with more study.";
         }
 
-        // Show results
         showResults(finalDisplayScore, correctAnswers, message, subjectScores);
 
     } catch (error) {
@@ -1076,7 +1023,7 @@ async function submitTest() {
 }
 
 // =============================================
-// SHOW RESULTS (UPDATED WITH DEFENSIVE CHECKS AND HIDDEN MESSAGE)
+// SHOW RESULTS
 // =============================================
 function showResults(score, correctAnswers, message, subjectScores = null) {
     getResultBtn.classList.remove('btn-loading');
@@ -1086,20 +1033,16 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
     correctCount.textContent = correctAnswers;
     totalQuestionsCount.textContent = testData.questions.length;
     
-    // Set the performance message (but hide it)
     if (performanceMessage) {
         performanceMessage.textContent = message;
-        performanceMessage.style.display = 'none'; // Hide the motivational comment
+        performanceMessage.style.display = 'none';
     }
 
-    // ===== Display Weak and Strong Topics (Cumulative) =====
     const topicBreakdownContainer = document.getElementById('topicBreakdownContainer');
     const topicBreakdownList = document.getElementById('topicBreakdownList');
     if (topicBreakdownContainer && topicBreakdownList) {
         if ((testData.weakTopics && testData.weakTopics.length > 0) || (testData.strongTopics && testData.strongTopics.length > 0)) {
             let html = '';
-
-            // Weak topics
             if (testData.weakTopics && testData.weakTopics.length > 0) {
                 html += '<div style="margin-top: 8px; font-weight: 600; color: #dc3545;">Weak Areas</div>';
                 testData.weakTopics.forEach(topic => {
@@ -1112,8 +1055,6 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
                     `;
                 });
             }
-
-            // Strong topics
             if (testData.strongTopics && testData.strongTopics.length > 0) {
                 html += '<div style="margin-top: 16px; font-weight: 600; color: #28a745;">Strong Areas</div>';
                 testData.strongTopics.forEach(topic => {
@@ -1126,16 +1067,13 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
                     `;
                 });
             }
-
             topicBreakdownList.innerHTML = html;
             topicBreakdownContainer.style.display = 'block';
         } else {
             topicBreakdownContainer.style.display = 'none';
         }
     }
-    // ===== END NEW CODE =====
 
-    // ===== Display recommendations (with null checks) =====
     const recommendationsContainer = document.getElementById('recommendationsContainer');
     const recommendationsList = document.getElementById('recommendationsList');
     if (recommendationsContainer && recommendationsList && testData.recommendations && testData.recommendations.length > 0) {
@@ -1146,16 +1084,22 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
     } else if (recommendationsContainer) {
         recommendationsContainer.style.display = 'none';
     }
-    // ===== END NEW CODE =====
 
-    // Show subject breakdown for JAMB Drill
-    if (testData.mode === 'jamb_drill' && subjectScores) {
+    // Display subject breakdown for both JAMB and WAEC/NECO drills
+    if (subjectScores && (testData.mode === 'jamb_drill' || testData.mode === 'waec_neco')) {
         subjectBreakdown.style.display = 'block';
         let html = '';
-        testData.subjects.forEach(subj => {
-            const data = subjectScores[subj.value] || { correct: 0, total: subj.count };
-            html += `<div style="margin: 5px 0;"><strong>${subj.name}:</strong> ${data.correct}/${data.total}</div>`;
-        });
+        if (testData.mode === 'jamb_drill') {
+            testData.subjects.forEach(subj => {
+                const data = subjectScores[subj.value] || { correct: 0, total: subj.count };
+                html += `<div style="margin: 5px 0;"><strong>${subj.name}:</strong> ${data.correct}/${data.total}</div>`;
+            });
+        } else if (testData.mode === 'waec_neco') {
+            // WAEC/NECO: only one subject
+            const subjectName = testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1);
+            const data = subjectScores[testData.subject] || { correct: correctAnswers, total: testData.totalQuestions };
+            html += `<div style="margin: 5px 0;"><strong>${subjectName}:</strong> ${data.correct}/${data.total}</div>`;
+        }
         subjectBreakdownList.innerHTML = html;
     } else {
         subjectBreakdown.style.display = 'none';
@@ -1164,10 +1108,8 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
     resultsModal.style.display = 'flex';
     addSolutionButton();
 
-    // Clear current test from sessionStorage
     sessionStorage.removeItem('currentTest');
 
-    // Store in sessionStorage for reference
     try {
         sessionStorage.setItem('previousTest', JSON.stringify({
             ...testData,
@@ -1181,7 +1123,7 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
 }
 
 // =============================================
-// SOLUTION BUTTON - MODIFIED to allow both 'paid' and 'unlimited'
+// SOLUTION BUTTON
 // =============================================
 function addSolutionButton() {
     const premiumNotification = document.getElementById('premiumNotification');
@@ -1189,7 +1131,6 @@ function addSolutionButton() {
         premiumNotification.style.display = 'block';
     }
 
-    // Allow access if plan is 'paid' OR 'unlimited'
     const hasAccess = testData && (testData.plan === 'paid' || testData.plan === 'unlimited');
 
     const modalButtons = document.querySelector('#resultsModal .modal-buttons');
@@ -1228,7 +1169,7 @@ function addSolutionButton() {
 }
 
 // =============================================
-// SOLUTIONS MODAL (enhanced to group by subject)
+// SOLUTIONS MODAL
 // =============================================
 function showSolutionsModal(questions, userAnswers) {
     const modal = document.getElementById('solutionModal');
@@ -1240,7 +1181,6 @@ function showSolutionsModal(questions, userAnswers) {
     const solutionsContainer = document.createElement('div');
     solutionsContainer.className = 'solutions-container';
 
-    // If JAMB Drill, group by subject
     if (testData.mode === 'jamb_drill') {
         const subjects = testData.subjects;
         subjects.forEach(subj => {
@@ -1250,11 +1190,8 @@ function showSolutionsModal(questions, userAnswers) {
             subjectHeader.innerHTML = `<i class="fas fa-book"></i> ${subj.name}`;
             solutionsContainer.appendChild(subjectHeader);
 
-            // Filter questions for this subject
             const subjectQuestions = questions.filter((q, idx) => q.subject === subj.value);
             subjectQuestions.forEach((question, idxInSubj) => {
-                // Find global index (if needed, but we can just iterate)
-                // For simplicity, we'll just pass the question and its answer
                 const globalIndex = questions.findIndex(q => q.id === question.id);
                 const userAnswer = userAnswers[globalIndex];
                 const solutionItem = createSolutionItem(question, userAnswer, globalIndex + 1);
@@ -1262,7 +1199,7 @@ function showSolutionsModal(questions, userAnswers) {
             });
         });
     } else {
-        // Quick Test or WAEC/NECO: just list all
+        // For Quick Test and WAEC/NECO, just list all questions
         questions.forEach((question, index) => {
             const solutionItem = createSolutionItem(question, userAnswers[index], index + 1);
             solutionsContainer.appendChild(solutionItem);
@@ -1377,7 +1314,7 @@ function createSolutionItem(question, userAnswer, displayNumber) {
 }
 
 // =============================================
-// TEXT FORMATTING (unchanged)
+// TEXT FORMATTING
 // =============================================
 function processSolutionText(text) {
     if (!text) return '';
@@ -1414,7 +1351,7 @@ function goToDashboard() {
 }
 
 // =============================================
-// KEYBOARD NAVIGATION (unchanged)
+// KEYBOARD NAVIGATION
 // =============================================
 function handleKeyboardNavigation(e) {
     if (submitModal.style.display === 'flex' || resultsModal.style.display === 'flex') {
