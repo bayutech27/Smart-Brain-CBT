@@ -1,48 +1,71 @@
-const CACHE_NAME = "smartbrain-v2";
+// ===== VERSION =====
+const CACHE_NAME = "smartbrain-v3";
 
+// ===== STATIC ASSETS (NO HTML HERE) =====
 const STATIC_ASSETS = [
-  "/",
-  "/index.html",
   "/style.css",
   "/auth.js",
   "/dashboard.js"
 ];
 
-// Install
-self.addEventListener("install", event => {
+// ===== INSTALL =====
+self.addEventListener("install", (event) => {
+  self.skipWaiting(); // activate immediately
+
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(STATIC_ASSETS);
+    })
   );
 });
 
-// Activate
+// ===== ACTIVATE =====
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
+            return caches.delete(cache); // delete old cache
           }
         })
       );
     })
   );
+
+  self.clients.claim(); // take control immediately
 });
 
-self.addEventListener("install", (event) => {
-  self.skipWaiting();
-});
+// ===== FETCH STRATEGY =====
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
 
-self.addEventListener("activate", (event) => {
-  clients.claim();
-});
+  // ✅ 1. HTML → NETWORK FIRST (CRITICAL FIX)
+  if (request.headers.get("accept")?.includes("text/html")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, response.clone());
+            return response;
+          });
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
 
-// Fetch
-self.addEventListener("fetch", event => {
+  // ✅ 2. JS/CSS/Assets → CACHE FIRST
   event.respondWith(
-    caches.match(event.request)
-      .then(response => response || fetch(event.request))
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(request).then((response) => {
+        return caches.open(CACHE_NAME).then((cache) => {
+          cache.put(request, response.clone());
+          return response;
+        });
+      });
+    })
   );
 });
