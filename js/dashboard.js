@@ -1739,3 +1739,15 @@ function initDashboard() {
 
 // Start everything
 initDashboard();
+
+navigator.serviceWorker.register('/service-worker.js').then(reg => {
+  reg.onupdatefound = () => {
+    const newWorker = reg.installing;
+    newWorker.onstatechange = () => {
+      if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+        alert("New update available. Refreshing...");
+        window.location.reload();
+      }
+    };
+  };
+});

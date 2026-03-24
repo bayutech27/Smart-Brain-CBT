@@ -1,4 +1,4 @@
-const CACHE_NAME = "smartbrain-v1";
+const CACHE_NAME = "smartbrain-v2";
 
 const STATIC_ASSETS = [
   "/",
@@ -17,18 +17,26 @@ self.addEventListener("install", event => {
 });
 
 // Activate
-self.addEventListener("activate", event => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.map(key => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cache) => {
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache);
           }
         })
-      )
-    )
+      );
+    })
   );
+});
+
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  clients.claim();
 });
 
 // Fetch
