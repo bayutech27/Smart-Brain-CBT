@@ -13,8 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
- <link rel="manifest" href="/public/manifest.json">
-<meta name="theme-color" content="#1a73e8">
+ <link rel="manifest" href="/manifest.json">
   <!-- Add EmailJS SDK -->
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
   <script type="text/javascript">
@@ -398,13 +397,10 @@
   </div>
 </footer>
 
-<!---<script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/public/sw.js")
-    .then(() => console.log("SW registered"))
-    .catch(err => console.log("SW failed", err));
-}
-</script>--->
+
+<script>
+navigator.serviceWorker.register("/sw.js");
+</script>
 <script type="module" src="js/script.js"></script>
 <script src="js/contact.js"></script>
 </body>
