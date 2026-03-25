@@ -6,7 +6,7 @@
   <meta name="author" content="Bayo Alabi">
   <meta name="description" content="Smart Brain CBT platform for secondary school students in Nigeria">
   <title>Smart Brain CBT | DASHBOARD</title>
-   <link rel="icon" type="image/png" href="img/Smart-brain-icon.png">
+  <link rel="icon" type="image/png" href="img/Smart-brain-icon.png">
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -189,9 +189,7 @@
       </div>
     </section>
 
-    <!-- ⚠️ "How to Use Smart Brain CBT" section REMOVED completely -->
-
-    <!-- QUICK TEST SECTION (Existing) -->
+    <!-- QUICK TEST SECTION -->
     <section class="practice-section" id="quickTestSection">
       <div class="section-header">
         <h2><i class="fas fa-bolt"></i> Quick Test (20 questions, 20 mins)</h2>
@@ -227,7 +225,7 @@
       </form>
     </section>
 
-    <!-- JAMB DRILL SECTION (New) -->
+    <!-- JAMB DRILL SECTION -->
     <section class="practice-section" id="jambDrillSection">
       <div class="section-header">
         <h2><i class="fas fa-graduation-cap"></i> JAMB Drill (4 Subjects, 120 mins, scored /400)</h2>
@@ -239,7 +237,6 @@
       </div>
 
       <form class="practice-form" id="jambDrillForm">
-        <!-- English (compulsory, pre-selected, disabled) -->
         <div class="form-group">
           <label><i class="fas fa-book"></i> English (Compulsory)</label>
           <div class="checkbox-item" style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
@@ -251,7 +248,6 @@
         <div class="form-group">
           <label><i class="fas fa-book"></i> Choose 3 Additional Subjects</label>
           <div class="checkbox-group" id="additionalSubjects" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 12px; margin-top: 10px;">
-            <!-- Will be populated by JS with checkboxes for all subjects except english -->
           </div>
           <small id="subjectSelectionHint" style="color: #666; display: block; margin-top: 8px;">Select exactly 3 subjects</small>
         </div>
@@ -287,7 +283,7 @@
       </form>
     </section>
 
-    <!-- NEW: Recent Tests Section -->
+    <!-- Recent Tests Section -->
     <section class="recent-tests-section">
       <div id="recentTestsContainer" class="recent-tests">
         <h3>Recent Tests</h3>
@@ -304,7 +300,6 @@
 
       <div class="analytics-grid-wrapper">
         <div class="analytics-grid">
-          <!-- Weekly Trend Card -->
           <div class="analytics-card">
             <h3><i class="fas fa-calendar-week"></i> Weekly Trend (Last 7 days)</h3>
             <div class="chart-container">
@@ -312,7 +307,6 @@
             </div>
           </div>
 
-          <!-- Monthly Trend Card -->
           <div class="analytics-card">
             <h3><i class="fas fa-calendar-alt"></i> Monthly Improvement</h3>
             <div class="chart-container">
@@ -320,20 +314,17 @@
             </div>
           </div>
 
-          <!-- Average Time Per Question -->
           <div class="analytics-card small">
             <h3><i class="fas fa-clock"></i> Avg Time / Question</h3>
             <div class="big-number" id="avgTimeDisplay">—</div>
           </div>
 
-          <!-- Best Subject -->
           <div class="analytics-card small">
             <h3><i class="fas fa-trophy"></i> Best Subject</h3>
             <div id="bestSubjectDisplay" class="big-number">—</div>
             <div class="small-note" id="bestSubjectScore"></div>
           </div>
 
-          <!-- Most Improved Topic -->
           <div class="analytics-card small">
             <h3><i class="fas fa-arrow-up"></i> Most Improved Topic</h3>
             <div id="improvedTopicDisplay" class="big-number">—</div>
@@ -352,7 +343,6 @@
 
       <div class="leaderboard-grid-wrapper">
         <div class="leaderboard-grid">
-          <!-- Top 10 This Week -->
           <div class="leaderboard-card">
             <h3><i class="fas fa-crown"></i> Top 10 This Week</h3>
             <div class="leaderboard-list" id="leaderboardTop10">
@@ -360,25 +350,21 @@
             </div>
           </div>
 
-          <!-- Top Per Subject (simplified: show top in Mathematics) -->
           <div class="leaderboard-card">
             <h3><i class="fas fa-book-open"></i> Top Per Subject</h3>
             <div class="subject-tabs" id="subjectTabsLeaderboard">
-              <!-- Will be populated with subject buttons -->
             </div>
             <div class="leaderboard-list" id="topPerSubjectList">
               <p class="placeholder">Select a subject</p>
             </div>
           </div>
 
-          <!-- Most Improved Student -->
           <div class="leaderboard-card">
             <h3><i class="fas fa-chart-line"></i> Most Improved</h3>
             <div id="mostImprovedStudent" class="big-number">—</div>
             <div class="small-note" id="mostImprovedDelta"></div>
           </div>
 
-          <!-- Highest JAMB Drill Score -->
           <div class="leaderboard-card">
             <h3><i class="fas fa-graduation-cap"></i> Highest JAMB Drill</h3>
             <div id="highestJambScore" class="big-number">—</div>
@@ -407,9 +393,11 @@
   </div>
 </main>
 
-<script type="module"   src="js/script.js"></script>
+<!-- CRITICAL FIX: Load main configuration first, then modules -->
+<script type="module" src="js/main.js"></script>
 <script type="module" src="js/auth.js"></script>
 <script type="module" src="js/dashboard.js"></script>
+<script type="module" src="js/script.js"></script>
 
 </body>
 </html>

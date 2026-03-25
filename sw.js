@@ -1,41 +1,44 @@
 // ===== VERSION =====
-const CACHE_VERSION = 'v4'; // Increment this with each update
+const CACHE_VERSION = 'v5'; // Increment with each update
 const CACHE_NAME = `smartbrain-${CACHE_VERSION}`;
 
-// ===== STATIC ASSETS =====
+// ===== STATIC ASSETS - Updated paths to match your actual file structure =====
 const STATIC_ASSETS = [
   "/",
-  "/style.css",
-  "/auth.js",
-  "/dashboard.js"
-  // Add your main HTML/entry file if different from "/"
+  "/index.html",
+  "/dashboard.html",
+  "/login.html",
+  "/css/styles.css",
+  "/css/dashboard.css",
+  "/js/main.js",
+  "/js/auth.js",
+  "/js/dashboard.js",
+  "/js/script.js",
+  "/img/Smart-brain-icon.png"
 ];
 
 // ===== INSTALL =====
 self.addEventListener("install", (event) => {
-  console.log('[SW] Installing new version:', CACHE_VERSION);
-  
-  // Skip waiting to activate immediately
+  console.log('[SW] Installing version:', CACHE_VERSION);
   self.skipWaiting();
   
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      // Add each asset individually with error handling
-      const addPromises = STATIC_ASSETS.map(async (asset) => {
+      // Cache each asset individually with error handling
+      for (const asset of STATIC_ASSETS) {
         try {
           const response = await fetch(asset);
-          if (response.ok) {
+          if (response && response.ok) {
             await cache.put(asset, response);
+            console.log(`[SW] Cached: ${asset}`);
           } else {
-            console.warn(`[SW] Failed to cache ${asset}: ${response.status}`);
+            console.warn(`[SW] Failed to cache ${asset}: ${response?.status}`);
           }
         } catch (error) {
           console.warn(`[SW] Error caching ${asset}:`, error);
         }
-      });
-      
-      await Promise.all(addPromises);
-      console.log('[SW] Cache populated with version:', CACHE_VERSION);
+      }
+      console.log('[SW] Installation complete');
     })
   );
 });
@@ -48,7 +51,6 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          // Delete all caches that don't match current version
           if (cacheName !== CACHE_NAME) {
             console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
@@ -56,7 +58,6 @@ self.addEventListener("activate", (event) => {
         })
       );
     }).then(() => {
-      // Take control of all clients immediately
       return self.clients.claim();
     })
   );
@@ -67,22 +68,21 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
   
-  // ✅ 1. DON'T CACHE API ENDPOINTS
+  // NEVER cache API or auth endpoints
   if (url.pathname.startsWith('/api/') || 
       url.pathname.includes('/auth/') ||
-      url.pathname.includes('/login') ||
-      url.pathname.includes('/logout')) {
-    // Network-only for API/auth requests
+      url.pathname.includes('/firestore') ||
+      url.pathname.includes('googleapis.com') ||
+      url.pathname.includes('firebase')) {
     event.respondWith(fetch(request));
     return;
   }
   
-  // ✅ 2. HTML → NETWORK FIRST (with proper fallback)
+  // HTML files - NETWORK FIRST
   if (request.headers.get("accept")?.includes("text/html")) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Only cache successful responses
           if (response && response.ok) {
             const responseClone = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -92,13 +92,11 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(async () => {
-          // Fallback to cached HTML
           const cachedResponse = await caches.match(request);
           if (cachedResponse) {
-            console.log('[SW] Serving cached HTML for:', request.url);
+            console.log('[SW] Serving cached HTML');
             return cachedResponse;
           }
-          // Return offline page if you have one
           return new Response('Offline - Please check your connection', {
             status: 503,
             headers: { 'Content-Type': 'text/html' }
@@ -108,11 +106,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   
-  // ✅ 3. JS/CSS/Assets → CACHE FIRST, NETWORK FALLBACK
+  // JS/CSS/Assets - CACHE FIRST, NETWORK FALLBACK
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Return cached version, but update in background
+        // Update cache in background
         fetch(request).then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
             caches.open(CACHE_NAME).then((cache) => {
@@ -123,7 +121,6 @@ self.addEventListener("fetch", (event) => {
         return cachedResponse;
       }
       
-      // No cache - fetch from network
       return fetch(request).then((networkResponse) => {
         if (networkResponse && networkResponse.ok) {
           const responseClone = networkResponse.clone();
@@ -137,14 +134,9 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// ✅ 4. Listen for messages from the main thread
+// Listen for messages from main thread
 self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') {
     self.skipWaiting();
-  }
-  
-  // Force check for updates
-  if (event.data === 'CHECK_UPDATE') {
-    self.registration.update();
   }
 });
