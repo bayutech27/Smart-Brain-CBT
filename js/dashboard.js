@@ -52,7 +52,7 @@ const ALL_SUBJECTS = [
     { value: 'geography', name: 'Geography' },
     { value: 'ict', name: 'ICT (Computer Studies)' },
     { value: 'marketing', name: 'Marketing' },
-    { value: 'agric science', name: 'Agricultural Science'}
+    { value: 'agric', name: 'Agricultural Science'}
 ];
 
 
