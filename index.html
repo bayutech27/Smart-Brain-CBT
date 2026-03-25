@@ -400,9 +400,16 @@
 
 <script>
 
-app.get('*', (req, res) =>
-    res.setHeader('Cache-Control', 'no-store').sendFile(path.resolve('dist', 'index.html'))
-);
+// Source - https://stackoverflow.com/q/77806374
+// Posted by ISHAN JARWAL
+// Retrieved 2026-03-25, License - CC BY-SA 4.0
+
+app.use(express.static(path.resolve(__dirname, "dist")), {
+    setHeaders: function (res, path, stat) {
+        res.setHeader("Cache-Control", "no-store");
+    }
+})
+
 
 </script>
 <script type="module" src="js/script.js"></script>
