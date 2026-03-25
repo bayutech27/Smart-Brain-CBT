@@ -29,40 +29,31 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 
 // ===== SERVICE WORKER REGISTRATION =====
+// Register service worker with version tracking
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-
-    navigator.serviceWorker.register('/sw.js').then(reg => {
-
-      console.log("✅ Service Worker registered");
-
-      // 🔄 Check for updates every 10 seconds
+  const registerSW = async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      console.log('SW registered');
+      
+      // Check for updates every 30 seconds (optional)
       setInterval(() => {
-        reg.update();
-      }, 10000);
-
-      // 🚀 Detect new version
-      reg.onupdatefound = () => {
-        const newWorker = reg.installing;
-
-        newWorker.onstatechange = () => {
-          if (
-            newWorker.state === 'installed' &&
-            navigator.serviceWorker.controller
-          ) {
-            console.log("🔥 New update available");
-
-            // OPTIONAL: replace alert with UI later
-            alert("New update available. Reloading...");
-
-            window.location.reload();
-          }
-        };
-      };
-
-    }).catch(err => {
-      console.error("SW registration failed:", err);
-    });
-
-  });
+        registration.update();
+      }, 30000);
+      
+      // Handle controller changes (new version activated)
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+      
+    } catch (error) {
+      console.error('SW registration failed:', error);
+    }
+  };
+  
+  registerSW();
 }
