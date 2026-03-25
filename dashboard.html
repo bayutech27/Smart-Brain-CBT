@@ -393,11 +393,11 @@
   </div>
 </main>
 
-<!-- CRITICAL FIX: Load main configuration first, then modules -->
+<!-- Load main.js first (contains Firebase config) -->
 <script type="module" src="js/main.js"></script>
+<!-- Then load other modules that depend on main.js -->
 <script type="module" src="js/auth.js"></script>
 <script type="module" src="js/dashboard.js"></script>
 <script type="module" src="js/script.js"></script>
-
 </body>
 </html>

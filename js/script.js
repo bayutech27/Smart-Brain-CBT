@@ -1,11 +1,15 @@
 // js/script.js – Handles auth UI (login/logout + home/dashboard toggle) and mobile menu
 
+// Import as named exports (matching main.js)
 import { auth } from "./main.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
+// Wait for DOM to be fully loaded
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('📄 script.js loaded, auth available:', !!auth);
+  
   // ----- Auth UI Elements -----
-  const loginButtons = document.querySelectorAll('.btn-login');       // both desktop & mobile
+  const loginButtons = document.querySelectorAll('.btn-login');
   const homeIcons = document.querySelectorAll('.desktop-nav-link i.fa-home, .nav-link i.fa-home');
 
   /**
@@ -13,12 +17,14 @@ document.addEventListener('DOMContentLoaded', () => {
    * @param {Object|null} user - Firebase user or null
    */
   function updateUI(user) {
+    console.log('🔄 Updating UI, user logged in:', !!user);
+    
     // 1. Update login/logout buttons
     loginButtons.forEach(btn => {
       if (user) {
         // Logged in → show "Logout"
         btn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
-        btn.href = '#';   // prevent navigation (click handled by listener)
+        btn.href = '#';
         if (!btn.dataset.logoutListener) {
           btn.addEventListener('click', handleLogout);
           btn.dataset.logoutListener = 'true';
@@ -43,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
           link.innerHTML = '<i class="fas fa-home"></i> Dashboard';
           link.href = 'dashboard.html';
         } else {
-          // Logged out: revert to "Home" and link to "#" (scrolls to top)
+          // Logged out: revert to "Home" and link to "#"
           link.innerHTML = '<i class="fas fa-home"></i> Home';
           link.href = '#';
         }
@@ -56,21 +62,33 @@ document.addEventListener('DOMContentLoaded', () => {
    */
   async function handleLogout(e) {
     e.preventDefault();
+    console.log('🚪 Logging out...');
     try {
       await signOut(auth);
-      sessionStorage.clear(); // optional – clears any session data
-      // UI will revert automatically via onAuthStateChanged
+      sessionStorage.clear();
+      localStorage.removeItem('userPlan'); // Clear any stored plan data
+      console.log('✅ Logout successful');
+      // Redirect to home page after logout
+      window.location.href = 'index.html';
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('❌ Logout error:', error);
       alert('Failed to log out. Please try again.');
     }
   }
 
-  // Listen to Firebase auth state changes (triggers updateUI on every change)
-  auth.onAuthStateChanged(updateUI);
+  // Check if auth is available before using it
+  if (auth) {
+    // Listen to Firebase auth state changes
+    auth.onAuthStateChanged((user) => {
+      console.log('🔥 Auth state changed:', user ? `User: ${user.uid}` : 'No user');
+      updateUI(user);
+    });
+  } else {
+    console.error('❌ Auth not available! Check main.js exports');
+  }
 
   // ------------------------------------------------------------------
-  // Existing Mobile Menu & Scroll Functionality (with smooth scroll fix)
+  // Mobile Menu & Scroll Functionality
   // ------------------------------------------------------------------
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobileMenu');
@@ -97,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Close mobile menu when clicking desktop nav links
   const desktopNavLinks = document.querySelectorAll('.desktop-nav-link');
   desktopNavLinks.forEach(link => {
-    link.addEventListener('click', (e) => {
+    link.addEventListener('click', () => {
       if (mobileMenu && mobileMenu.classList.contains('active')) {
         hamburger.classList.remove('active');
         mobileMenu.classList.remove('active');
@@ -112,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Smooth scrolling for anchor links – FIXED to only handle hash links
+  // Smooth scrolling for anchor links
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
       // If the href doesn't start with '#', let the browser navigate normally
@@ -121,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
 
       const targetId = this.getAttribute('href');
-      if (targetId === '#') return; // do nothing for empty hash
+      if (targetId === '#') return;
 
       const targetElement = document.querySelector(targetId);
       if (targetElement) {
