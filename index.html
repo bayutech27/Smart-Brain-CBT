@@ -399,7 +399,11 @@
 
 
 <script>
-navigator.serviceWorker.register("/sw.js");
+
+app.get('*', (req, res) =>
+    res.setHeader('Cache-Control', 'no-store').sendFile(path.resolve('dist', 'index.html'))
+);
+
 </script>
 <script type="module" src="js/script.js"></script>
 <script src="js/contact.js"></script>
