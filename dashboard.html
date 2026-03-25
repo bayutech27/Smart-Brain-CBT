@@ -393,9 +393,9 @@
   </div>
 </main>
 
-<!-- Load main.js first (contains Firebase config) -->
+<!-- Load modules in the correct order -->
 <script type="module" src="js/main.js"></script>
-<!-- Then load other modules that depend on main.js -->
+<script type="module" src="js/sw-register.js"></script>
 <script type="module" src="js/auth.js"></script>
 <script type="module" src="js/dashboard.js"></script>
 <script type="module" src="js/script.js"></script>

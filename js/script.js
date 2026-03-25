@@ -1,28 +1,32 @@
-// js/script.js – Handles auth UI (login/logout + home/dashboard toggle) and mobile menu
+// script.js - UI Logic for Auth and Mobile Menu
+// This file handles ONLY UI interactions
 
-// Import as named exports (matching main.js)
 import { auth } from "./main.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
 // Wait for DOM to be fully loaded
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('📄 script.js loaded, auth available:', !!auth);
+  console.log('📄 script.js loaded');
   
+  // Wait for auth to be ready
+  if (!auth) {
+    console.error('❌ Auth not available!');
+    return;
+  }
+
   // ----- Auth UI Elements -----
   const loginButtons = document.querySelectorAll('.btn-login');
   const homeIcons = document.querySelectorAll('.desktop-nav-link i.fa-home, .nav-link i.fa-home');
 
   /**
    * Update UI based on authentication state
-   * @param {Object|null} user - Firebase user or null
    */
   function updateUI(user) {
     console.log('🔄 Updating UI, user logged in:', !!user);
     
-    // 1. Update login/logout buttons
+    // Update login/logout buttons
     loginButtons.forEach(btn => {
       if (user) {
-        // Logged in → show "Logout"
         btn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
         btn.href = '#';
         if (!btn.dataset.logoutListener) {
@@ -30,7 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.dataset.logoutListener = 'true';
         }
       } else {
-        // Logged out → show "Login"
         btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
         btn.href = 'login.html';
         if (btn.dataset.logoutListener) {
@@ -40,16 +43,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // 2. Update home links → Dashboard when logged in, Home when logged out
+    // Update home links
     homeIcons.forEach(icon => {
       const link = icon.closest('a');
       if (link) {
         if (user) {
-          // Logged in: change text to "Dashboard" and link to dashboard.html
           link.innerHTML = '<i class="fas fa-home"></i> Dashboard';
           link.href = 'dashboard.html';
         } else {
-          // Logged out: revert to "Home" and link to "#"
           link.innerHTML = '<i class="fas fa-home"></i> Home';
           link.href = '#';
         }
@@ -66,9 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       await signOut(auth);
       sessionStorage.clear();
-      localStorage.removeItem('userPlan'); // Clear any stored plan data
+      localStorage.removeItem('userPlan');
       console.log('✅ Logout successful');
-      // Redirect to home page after logout
       window.location.href = 'index.html';
     } catch (error) {
       console.error('❌ Logout error:', error);
@@ -76,25 +76,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Check if auth is available before using it
-  if (auth) {
-    // Listen to Firebase auth state changes
-    auth.onAuthStateChanged((user) => {
-      console.log('🔥 Auth state changed:', user ? `User: ${user.uid}` : 'No user');
-      updateUI(user);
-    });
-  } else {
-    console.error('❌ Auth not available! Check main.js exports');
-  }
+  // Listen to Firebase auth state changes
+  auth.onAuthStateChanged((user) => {
+    console.log('🔥 Auth state changed:', user ? `User: ${user.uid}` : 'No user');
+    updateUI(user);
+  });
 
   // ------------------------------------------------------------------
-  // Mobile Menu & Scroll Functionality
+  // Mobile Menu & Scroll Functionality (unchanged from your working code)
   // ------------------------------------------------------------------
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobileMenu');
   const navLinks = document.querySelectorAll('.nav-link');
 
-  // Toggle mobile menu
   if (hamburger && mobileMenu) {
     hamburger.addEventListener('click', () => {
       hamburger.classList.toggle('active');
@@ -102,7 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.style.overflow = mobileMenu.classList.contains('active') ? 'hidden' : '';
     });
 
-    // Close mobile menu when clicking on links
     navLinks.forEach(link => {
       link.addEventListener('click', () => {
         hamburger.classList.remove('active');
@@ -112,7 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Close mobile menu when clicking desktop nav links
   const desktopNavLinks = document.querySelectorAll('.desktop-nav-link');
   desktopNavLinks.forEach(link => {
     link.addEventListener('click', () => {
@@ -122,7 +114,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.style.overflow = '';
       }
 
-      // Handle active state for desktop nav (except login button)
       if (!link.classList.contains('btn-login')) {
         desktopNavLinks.forEach(l => l.classList.remove('active'));
         link.classList.add('active');
@@ -130,12 +121,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Smooth scrolling for anchor links
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
-      // If the href doesn't start with '#', let the browser navigate normally
       if (!this.getAttribute('href').startsWith('#')) return;
-
       e.preventDefault();
 
       const targetId = this.getAttribute('href');
@@ -145,7 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (targetElement) {
         const headerHeight = document.querySelector('.header').offsetHeight;
         const targetPosition = targetElement.offsetTop - headerHeight - 20;
-
         window.scrollTo({
           top: targetPosition,
           behavior: 'smooth'
@@ -154,7 +141,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Update active nav link on scroll
   window.addEventListener('scroll', () => {
     let current = '';
     const sections = document.querySelectorAll('section[id]');
@@ -163,7 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
     sections.forEach(section => {
       const sectionTop = section.offsetTop;
       const sectionHeight = section.clientHeight;
-
       if (scrollPosition >= sectionTop && scrollPosition < sectionTop + sectionHeight) {
         current = section.getAttribute('id');
       }
