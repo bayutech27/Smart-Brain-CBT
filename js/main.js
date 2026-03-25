@@ -29,7 +29,7 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 
 // ===== SERVICE WORKER REGISTRATION =====
-if ('serviceWorker' in navigator) {
+/*if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
 
     navigator.serviceWorker.register('/sw.js').then(reg => {
@@ -65,4 +65,4 @@ if ('serviceWorker' in navigator) {
     });
 
   });
-}
+}*/
