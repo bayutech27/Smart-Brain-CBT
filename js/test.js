@@ -415,6 +415,41 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // =============================================
+// HELPER: FIX EXCEL CONVERTED FRACTIONS
+// =============================================
+function fixExcelFraction(value) {
+    if (typeof value !== "string") return value;
+
+    const months = {
+        Jan: "1", Feb: "2", Mar: "3", Apr: "4",
+        May: "5", Jun: "6", Jul: "7", Aug: "8",
+        Sep: "9", Oct: "10", Nov: "11", Dec: "12"
+    };
+
+    // Pattern 1: dd-Mmm (e.g., 02-Mar)
+    const match1 = value.match(/^(\d{1,2})-([A-Za-z]{3})$/);
+    if (match1) {
+        const day = parseInt(match1[1], 10);
+        const monthAbbr = match1[2];
+        if (months[monthAbbr]) {
+            return `${day}/${months[monthAbbr]}`;
+        }
+    }
+
+    // Pattern 2: Mmm-dd (e.g., Jan-16)
+    const match2 = value.match(/^([A-Za-z]{3})-(\d{1,2})$/);
+    if (match2) {
+        const monthAbbr = match2[1];
+        const day = parseInt(match2[2], 10);
+        if (months[monthAbbr]) {
+            return `${months[monthAbbr]}/${day}`;
+        }
+    }
+
+    return value;
+}
+
+// =============================================
 // LOAD TEST DATA
 // =============================================
 async function loadTestData() {
@@ -583,11 +618,18 @@ function loadQuestion(index) {
     currentQuestionSpan.textContent = index + 1;
     optionsContainer.innerHTML = '';
 
-    const options = question.options || {
+    const rawOptions = question.options || {
         A: question.optionA || "",
         B: question.optionB || "",
         C: question.optionC || "",
         D: question.optionD || ""
+    };
+
+    const options = {
+        A: fixExcelFraction(rawOptions.A),
+        B: fixExcelFraction(rawOptions.B),
+        C: fixExcelFraction(rawOptions.C),
+        D: fixExcelFraction(rawOptions.D)
     };
 
     ['A', 'B', 'C', 'D'].forEach(letter => {
