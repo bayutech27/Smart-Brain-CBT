@@ -13,14 +13,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
- <link rel="manifest" href="/manifest.json">
-  <!-- Add EmailJS SDK -->
-  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-  <script type="text/javascript">
-    (function() {
-      emailjs.init("YOUR_PUBLIC_KEY_HERE"); // You'll need to replace this with your EmailJS Public Key
-    })();
-  </script>
+ 
+  
 </head>
 <body>
 
@@ -398,20 +392,7 @@
 </footer>
 
 
-<script>
 
-// Source - https://stackoverflow.com/q/77806374
-// Posted by ISHAN JARWAL
-// Retrieved 2026-03-25, License - CC BY-SA 4.0
-
-app.use(express.static(path.resolve(__dirname, "dist")), {
-    setHeaders: function (res, path, stat) {
-        res.setHeader("Cache-Control", "no-store");
-    }
-})
-
-
-</script>
 <script type="module" src="js/script.js"></script>
 <script src="js/contact.js"></script>
 </body>
