@@ -1,34 +1,16 @@
 {
   "headers": [
     {
-      "source": "/",
+      "source": "/(.*\\.html)",
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "no-store"
+          "value": "no-store, must-revalidate"
         }
       ]
     },
     {
-      "source": "/:path*.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store"
-        }
-      ]
-    },
-    {
-      "source": "/:path*.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=300"
-        }
-      ]
-    },
-    {
-      "source": "/:path*.css",
+      "source": "/(.*\\.(js|css))",
       "headers": [
         {
           "key": "Cache-Control",
