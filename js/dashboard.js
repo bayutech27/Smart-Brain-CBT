@@ -49,6 +49,7 @@ const ALL_SUBJECTS = [
     { value: 'crk', name: 'Christian Religious Knowledge (CRK)' },
     // New premium subjects
     { value: 'civic', name: 'Civic Education' },
+    { value: 'furtherMath', name: 'Further Mathematics' },
     { value: 'geography', name: 'Geography' },
     { value: 'ict', name: 'ICT (Computer Studies)' },
     { value: 'marketing', name: 'Marketing' },
