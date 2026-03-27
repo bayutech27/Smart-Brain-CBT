@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="author" content="Bayo Alabi">
+  <meta name="description" content="Smart Brain CBT platform for secondary school students in Nigeria">
+  <title>Smart Brain CBT | DASHBOARD</title>
+  <link rel="icon" type="image/png" href="img/Smart-brain-icon.png">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+  <!-- Chart.js for graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+
+<!-- HEADER - MOBILE FIRST -->
+<header class="header">
+  <div class="container header-container">
+    <div class="brand">
+      <div class="logo">
+        <i class="fas fa-brain"></i>
+      </div>
+      <h1 class="brand-name">Smart Brain <span class="cbt">CBT</span></h1>
+    </div>
+
+    <div class="hamburger" id="hamburger">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+
+    <!-- DESKTOP NAVIGATION -->
+    <nav class="desktop-nav">
+      <ul class="desktop-nav-list">
+        <li class="desktop-nav-item">
+          <a href="index.html" class="desktop-nav-link">
+            <i class="fas fa-home"></i> Home
+          </a>
+        </li>
+        <li class="desktop-nav-item">
+          <a href="index.html#features" class="desktop-nav-link">
+            <i class="fas fa-star"></i> Features
+          </a>
+        </li>
+        <li class="desktop-nav-item">
+          <a href="index.html#exams" class="desktop-nav-link">
+            <i class="fas fa-book"></i> Exams
+          </a>
+        </li>
+        <li class="desktop-nav-item">
+          <a href="index.html#contact" class="desktop-nav-link">
+            <i class="fas fa-envelope"></i> Contact
+          </a>
+        </li>
+        <li class="desktop-nav-item">
+          <a href="dashboard.html" class="desktop-nav-link active">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<!-- MOBILE MENU -->
+<nav class="mobile-menu" id="mobileMenu">
+  <div class="container">
+    <ul class="nav-list">
+      <li><a href="index.html" class="nav-link"><i class="fas fa-home"></i> Home</a></li>
+      <li><a href="index.html#features" class="nav-link"><i class="fas fa-star"></i> Features</a></li>
+      <li><a href="index.html#exams" class="nav-link"><i class="fas fa-book"></i> Exams</a></li>
+      <li><a href="index.html#contact" class="nav-link"><i class="fas fa-envelope"></i> Contact</a></li>
+      <li><a href="dashboard.html" class="nav-link active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main class="dashboard">
+  <div class="dashboard-container">
+    
+    <!-- Premium Upgrade Banner -->
+    <div id="premiumBanner" class="premium-banner" style="display: none;">
+      <div class="premium-content">
+        <div class="premium-header">
+          <div class="limited-offer-badge">
+            <span class="limited-text">LIMITED OFFER</span>
+            <i class="fas fa-bolt"></i>
+          </div>
+          <div class="premium-title-section">
+            <i class="fas fa-crown"></i>
+            <h3>Upgrade to Premium & Unlock Everything!</h3>
+          </div>
+        </div>
+        <div class="premium-features">
+          <span><i class="fas fa-infinity"></i> Unlimited Tests</span>
+          <span><i class="fas fa-book"></i> All Subjects</span>
+          <span><i class="fas fa-graduation-cap"></i> JAMB Drill</span>
+          <span><i class="fas fa-school"></i> WAEC/NECO Drill</span>
+          <span><i class="fas fa-lightbulb"></i> Detailed Solutions</span>
+          <span><i class="fas fa-book"></i> Topic Performance</span>
+          <span><i class="fas fa-chart-line"></i> Performance Analytics</span>
+          <span><i class="fas fa-clock"></i> 24/7 Access</span>
+        </div>
+        <div class="premium-cta">
+          <div class="pricing">
+            <span class="old-price">₦5,000</span>
+            <span class="current-price">₦2,000</span>
+            <span class="per-month">/month</span>
+          </div>
+          <a href="https://paystack.shop/pay/6s0qf8xv82" style="text-decoration: none;" target="_blank">
+            <button class="upgrade-btn">
+              <i class="fas fa-rocket"></i> Upgrade Now
+            </button>
+          </a>
+        </div>
+        <div class="support-note">
+          <p><i class="fas fa-info-circle"></i> <strong>Payment Issues?</strong> If you've made payment but haven't been upgraded, send your payment receipt, full name, and email address to:</p>
+          <a href="https://wa.me/2349044784225?text=Hello%20Smart%20Brain%20CBT%20Support%2C%20I%20have%20made%20payment%20but%20haven%27t%20been%20upgraded%20to%20premium.%20Here%20are%20my%20details%3A%0A%0A-%20Full%20Name%3A%20%0A-%20Email%20Address%3A%20%0A-%20Payment%20Receipt%3A%20" 
+             class="whatsapp-contact" 
+             target="_blank">
+            <i class="fab fa-whatsapp"></i> WhatsApp Support: +234 904 478 4225
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Welcome Section -->
+    <section class="welcome-section">
+      <div class="welcome-content">
+        <div class="user-welcome">
+          <h1>Welcome, <span id="userName"></span>!</h1>
+          <p id="userPlanStatus">Ready to ace your next test? <i class="fas fa-rocket"></i></p>
+          <div id="testLimitInfo" class="test-limit-info" style="display: none;">
+            <p><i class="fas fa-info-circle"></i> <span id="testsRemaining"></span> tests remaining this week (Free Plan)</p>
+          </div>
+        </div>
+        
+        <div class="profile-picture">
+          <img src="https://via.placeholder.com/100/4285F4/FFFFFF?text=SB" alt="Profile" class="profile-img" id="profileImg">
+          <label for="profileUpload" class="profile-upload" title="Upload Photo">
+            <i class="fas fa-camera"></i>
+          </label>
+          <input type="file" id="profileUpload" accept="image/*">
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Cards -->
+    <section class="stats-section">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <div class="stat-content">
+            <h3>Completed Tests</h3>
+            <div class="stat-number" id="completedTests">0</div>
+            <div class="stat-label">tests taken</div>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-chart-line"></i>
+          </div>
+          <div class="stat-content">
+            <h3>Average Score</h3>
+            <div class="stat-number" id="averageScore">0<span class="percent">%</span></div>
+            <div class="stat-label" id="performanceMessage">Start practicing!</div>
+          </div>
+        </div>
+
+        <div class="stat-card" id="planStatusCard">
+          <div class="stat-icon">
+            <i class="fas fa-crown" id="planIcon"></i>
+          </div>
+          <div class="stat-content">
+            <h3>Your Plan</h3>
+            <div class="stat-number" id="userPlan">Free</div>
+            <div class="stat-label" id="planStatus">Basic Access</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUICK TEST SECTION -->
+    <section class="practice-section" id="quickTestSection">
+      <div class="section-header">
+        <h2><i class="fas fa-bolt"></i> Quick Test (20 questions, 20 mins)</h2>
+        <p class="section-subtitle">Select your exam and subject to begin</p>
+      </div>
+      
+      <form class="practice-form" id="quickTestForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="classSelect"><i class="fas fa-graduation-cap"></i> Select Exam</label>
+            <select id="classSelect" class="form-select" required>
+              <option value="" disabled selected>Choose your exam</option>
+              <option value="waec">WAEC/NECO</option>
+              <option value="jamb">JAMB</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="subjectSelect"><i class="fas fa-book"></i> Select Subject</label>
+            <select id="subjectSelect" class="form-select" required>
+              <option value="" disabled selected>Choose subject</option>
+            </select>
+          </div>
+          
+          <button type="button" id="startQuickTestBtn" class="start-test-btn">
+            <i class="fas fa-play-circle"></i> Start Quick Test
+          </button>
+        </div>
+        
+        <div id="planRestrictions" class="plan-restrictions" style="display: none;">
+          <p><i class="fas fa-info-circle"></i> <strong>Free Plan:</strong> Only Mathematics and English available. Upgrade for all subjects!</p>
+        </div>
+      </form>
+    </section>
+
+    <!-- JAMB DRILL SECTION -->
+    <section class="practice-section" id="jambDrillSection">
+      <div class="section-header">
+        <h2><i class="fas fa-graduation-cap"></i> JAMB Drill (4 Subjects, 120 mins, scored /400)</h2>
+        <p class="section-subtitle">English is compulsory. Choose 3 additional subjects.</p>
+      </div>
+
+      <div id="jambDrillPremiumNotice" class="plan-restrictions" style="background: #f8f9fa; border-left-color: #9C27B0; margin-bottom: 20px; display: none;">
+        <p><i class="fas fa-crown" style="color: #9C27B0;"></i> <strong>Premium Feature:</strong> JAMB Drill is available only for Premium users. <a href="#" id="upgradeFromJamb" style="color:#9C27B0; font-weight:600;">Upgrade now</a> to access.</p>
+      </div>
+
+      <form class="practice-form" id="jambDrillForm">
+        <div class="form-group">
+          <label><i class="fas fa-book"></i> English (Compulsory)</label>
+          <div class="checkbox-item" style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+            <input type="checkbox" id="subjectEnglish" value="english" checked disabled style="width: 18px; height: 18px;">
+            <label for="subjectEnglish" style="margin: 0; font-weight: 500;">English Language (60 questions)</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label><i class="fas fa-book"></i> Choose 3 Additional Subjects</label>
+          <div class="checkbox-group" id="additionalSubjects" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 12px; margin-top: 10px;">
+          </div>
+          <small id="subjectSelectionHint" style="color: #666; display: block; margin-top: 8px;">Select exactly 3 subjects</small>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <button type="button" id="startJambDrillBtn" class="start-test-btn" style="background: linear-gradient(135deg, #9C27B0, #6A11CB);">
+            <i class="fas fa-play-circle"></i> Start JAMB Drill
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- WAEC/NECO DRILL SECTION -->
+    <section class="practice-section" id="waecNecoDrillSection">
+      <div class="section-header">
+        <h2><i class="fas fa-school"></i> WAEC/NECO Drill (50 questions, 40 mins)</h2>
+        <p class="section-subtitle">Select a subject to start practicing WAEC/NECO style questions</p>
+      </div>
+
+      <form class="practice-form" id="waecNecoDrillForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="waecNecoSubjectSelect"><i class="fas fa-book"></i> Select Subject</label>
+            <select id="waecNecoSubjectSelect" class="form-select" required>
+              <option value="" disabled selected>Choose subject</option>
+            </select>
+          </div>
+
+          <button type="button" id="startWaecNecoDrillBtn" class="start-test-btn">
+            <i class="fas fa-play-circle"></i> Start WAEC/NECO Drill
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Recent Tests Section -->
+    <section class="recent-tests-section">
+      <div id="recentTestsContainer" class="recent-tests">
+        <h3>Recent Tests</h3>
+        <div id="recentTestsList"></div>
+      </div>
+    </section>
+
+    <!-- ANALYTICS SECTION -->
+    <section class="analytics-section">
+      <div class="section-header">
+        <h2><i class="fas fa-chart-line"></i> Performance Analytics</h2>
+        <p class="section-subtitle">Track your progress and identify strengths</p>
+      </div>
+
+      <div class="analytics-grid-wrapper">
+        <div class="analytics-grid">
+          <div class="analytics-card">
+            <h3><i class="fas fa-calendar-week"></i> Weekly Trend (Last 7 days)</h3>
+            <div class="chart-container">
+              <canvas id="weeklyTrendChart"></canvas>
+            </div>
+          </div>
+
+          <div class="analytics-card">
+            <h3><i class="fas fa-calendar-alt"></i> Monthly Improvement</h3>
+            <div class="chart-container">
+              <canvas id="monthlyChart"></canvas>
+            </div>
+          </div>
+
+          <div class="analytics-card small">
+            <h3><i class="fas fa-clock"></i> Avg Time / Question</h3>
+            <div class="big-number" id="avgTimeDisplay">—</div>
+          </div>
+
+          <div class="analytics-card small">
+            <h3><i class="fas fa-trophy"></i> Best Subject</h3>
+            <div id="bestSubjectDisplay" class="big-number">—</div>
+            <div class="small-note" id="bestSubjectScore"></div>
+          </div>
+
+          <div class="analytics-card small">
+            <h3><i class="fas fa-arrow-up"></i> Most Improved Topic</h3>
+            <div id="improvedTopicDisplay" class="big-number">—</div>
+            <div class="small-note" id="improvedTopicDelta"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LEADERBOARD SECTION -->
+    <section class="leaderboard-section">
+      <div class="section-header">
+        <h2><i class="fas fa-ranking-star"></i> Global Leaderboard</h2>
+        <p class="section-subtitle">Compete with students worldwide</p>
+      </div>
+
+      <div class="leaderboard-grid-wrapper">
+        <div class="leaderboard-grid">
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-crown"></i> Top 10 This Week</h3>
+            <div class="leaderboard-list" id="leaderboardTop10">
+              <p class="placeholder">Loading...</p>
+            </div>
+          </div>
+
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-book-open"></i> Top Per Subject</h3>
+            <div class="subject-tabs" id="subjectTabsLeaderboard">
+            </div>
+            <div class="leaderboard-list" id="topPerSubjectList">
+              <p class="placeholder">Select a subject</p>
+            </div>
+          </div>
+
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-chart-line"></i> Most Improved</h3>
+            <div id="mostImprovedStudent" class="big-number">—</div>
+            <div class="small-note" id="mostImprovedDelta"></div>
+          </div>
+
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-graduation-cap"></i> Highest JAMB Drill</h3>
+            <div id="highestJambScore" class="big-number">—</div>
+            <div class="small-note" id="highestJambScoreName"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dashboard Footer -->
+    <footer class="dashboard-footer">
+      <div class="footer-content">
+        <div class="footer-nav">
+          <a href="index.html" class="home-btn">
+            <i class="fas fa-home"></i> Home
+          </a>
+          <button id="logoutBtn" class="logout-btn">
+            <i class="fas fa-sign-out-alt"></i> Logout
+          </button>
+        </div>
+        <div class="footer-copyright">
+          <p>© 2026 Smart Brain CBT • Empowering students through technology</p>
+        </div>
+      </div>
+    </footer>
+  </div>
+</main>
+
+<!-- Load modules in the correct order -->
+<script type="module" src="js/main.js"></script>
+<script type="module" src="js/sw-register.js"></script>
+<script type="module" src="js/auth.js"></script>
+<script type="module" src="js/dashboard.js"></script>
+<script type="module" src="js/script.js"></script>
+</body>
+</html>
