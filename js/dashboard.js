@@ -13,7 +13,8 @@ import {
     serverTimestamp,
     onSnapshot,
     setDoc,
-    limit
+    limit,
+    startAfter
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
 import { 
@@ -29,6 +30,7 @@ const QUESTIONS_TO_FETCH = 20;
 const FREE_PLAN_WEEKLY_LIMIT = 3;
 const FREE_PLAN_SUBJECTS = ['mathematics', 'english'];
 const PREMIUM_PLAN_DURATION_DAYS = 30;
+const RECENT_TESTS_PAGE_SIZE = 12; // initial and per-load batch
 
 const EXAM_TYPE_MAP = {
     'waec': 'WAEC/NECO',
@@ -101,29 +103,26 @@ let currentUserData = null;
 let unsubscribeStats = null;
 let expirationInterval = null;
 let isResetting = false; // lock for weekly reset
+let unsubscribeRecentTests = null;
+let lastVisibleRecentDoc = null; // cursor for pagination
 
 // ========== HELPER: SAFE TIMESTAMP CONVERSION ==========
 function convertTimestamp(value) {
     if (!value) return null;
-    // Firestore Timestamp with toDate()
     if (typeof value.toDate === 'function') {
         return value.toDate();
     }
-    // Old format with seconds
     if (value.seconds !== undefined) {
         return new Date(value.seconds * 1000);
     }
-    // ISO string or date string
     if (typeof value === 'string') {
         const d = new Date(value);
         if (!isNaN(d.getTime())) return d;
     }
-    // milliseconds number
     if (typeof value === 'number') {
         const d = new Date(value);
         if (!isNaN(d.getTime())) return d;
     }
-    // Already a Date object
     if (value instanceof Date && !isNaN(value.getTime())) {
         return value;
     }
@@ -193,18 +192,15 @@ function showLoadingState(show, button) {
 
 // ========== FIREBASE USER & PLAN MANAGEMENT ==========
 async function checkAndResetTestCount(userId, userData) {
-    // Prevent concurrent resets
     if (isResetting) return;
     if (userData.plan !== 'free') return;
 
     try {
         isResetting = true;
 
-        // Safely convert last reset date
         const lastReset = convertTimestamp(userData.lastTestResetDate);
         const now = new Date();
 
-        // If no lastReset, initialize it
         if (!lastReset) {
             const userRef = doc(db, "users", userId);
             await updateDoc(userRef, {
@@ -218,7 +214,6 @@ async function checkAndResetTestCount(userId, userData) {
             return;
         }
 
-        // Calculate full days passed
         const daysDiff = Math.floor((now - lastReset) / (1000 * 60 * 60 * 24));
         if (daysDiff >= 7) {
             const userRef = doc(db, "users", userId);
@@ -244,7 +239,6 @@ async function checkPlanExpiration(userId, userData) {
     try {
         const subscriptionDate = convertTimestamp(userData.subscriptionDate);
         if (!subscriptionDate) {
-            // No subscription date, treat as free? Possibly set it now.
             const userRef = doc(db, "users", userId);
             await updateDoc(userRef, { subscriptionDate: serverTimestamp() });
             return false;
@@ -263,7 +257,6 @@ async function checkPlanExpiration(userId, userData) {
                 lastTestResetDate: serverTimestamp()
             });
 
-            // Refresh local user data after expiration
             if (currentUserData) {
                 currentUserData.plan = 'free';
                 currentUserData.subscriptionDate = null;
@@ -361,7 +354,6 @@ async function upgradeToPremium() {
             lastUpgraded: serverTimestamp()
         });
 
-        // Re-fetch the updated document to get accurate server timestamps
         const updatedSnap = await getDoc(userRef);
         if (updatedSnap.exists()) {
             currentUserData = updatedSnap.data();
@@ -418,14 +410,12 @@ async function loadUserData(userId) {
             populateWaecNecoSubjects();
             updateJambDrillVisibility();
             updateWaecNecoVisibility();
-            // Load recent tests
-            loadRecentTests(userId);
+            loadRecentTests(userId); // initial batch of 12 with real-time listener
             setTimeout(() => {
                 loadAnalytics(userId);
                 loadLeaderboard();
             }, 1000);
 
-            // Start background expiration monitor (every hour)
             startExpirationMonitor(userId);
         } else {
             await createDefaultUserProfile(userId);
@@ -441,7 +431,7 @@ function startExpirationMonitor(userId) {
     expirationInterval = setInterval(async () => {
         if (!auth.currentUser || !currentUserData) return;
         await checkPlanExpiration(userId, currentUserData);
-    }, 60 * 60 * 1000); // 1 hour
+    }, 60 * 60 * 1000);
 }
 
 async function createDefaultUserProfile(userId) {
@@ -519,81 +509,165 @@ function updateStatistics(snapshot) {
     if (performanceMessage) performanceMessage.textContent = message;
 }
 
-// ========== RECENT TESTS (Enhanced) ==========
-let unsubscribeRecentTests = null;
-
+// ========== RECENT TESTS (Enhanced with pagination) ==========
 function loadRecentTests(userId) {
     if (unsubscribeRecentTests) {
         unsubscribeRecentTests();
     }
 
     const recentTestsList = document.getElementById('recentTestsList');
+    const loadMoreContainer = document.getElementById('recentTestsMore');
+    const loadMoreBtn = document.getElementById('loadMoreRecentBtn');
+
     if (!recentTestsList) return;
+    // Reset cursor
+    lastVisibleRecentDoc = null;
 
     const q = query(
         collection(db, "test_results"),
         where("userId", "==", userId),
         orderBy("completedAt", "desc"),
-        limit(10)
+        limit(RECENT_TESTS_PAGE_SIZE)
     );
 
     unsubscribeRecentTests = onSnapshot(q, (snapshot) => {
         if (snapshot.empty) {
             recentTestsList.innerHTML = '<p class="no-tests">No tests yet. Start practicing!</p>';
+            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
             return;
         }
 
         const results = [];
         snapshot.forEach((doc) => {
-            const test = doc.data();
-            const mode = test.mode;
-            const completedAt = test.completedAt ? convertTimestamp(test.completedAt) : null;
-            const dateStr = completedAt ? completedAt.toLocaleDateString() : 'Unknown date';
-
-            let typeIcon = '';
-            let typeLabel = '';
-            let mainContent = '';
-
-            switch (mode) {
-                case 'quick':
-                    typeIcon = '<i class="fas fa-bolt"></i>';
-                    typeLabel = 'Quick Test';
-                    mainContent = renderQuickTest(test, dateStr);
-                    break;
-                case 'waec_neco':
-                    typeIcon = '<i class="fas fa-school"></i>';
-                    typeLabel = 'WAEC/NECO';
-                    mainContent = renderWaecNecoTest(test, dateStr);
-                    break;
-                case 'jamb_drill':
-                    typeIcon = '<i class="fas fa-graduation-cap"></i>';
-                    typeLabel = 'JAMB Drill';
-                    mainContent = renderJambDrillTest(test, dateStr);
-                    break;
-                default:
-                    typeIcon = '<i class="fas fa-pencil-alt"></i>';
-                    typeLabel = 'Test';
-                    mainContent = renderUnknownTest(test, dateStr);
-            }
-
-            results.push(`
-                <div class="recent-test-item">
-                    <div class="test-header">
-                        <div class="test-type-badge" title="${typeLabel}">${typeIcon}</div>
-                        <div class="test-date">${escapeHtml(dateStr)}</div>
-                    </div>
-                    ${mainContent}
-                </div>
-            `);
+            results.push({ id: doc.id, ...doc.data() });
         });
 
-        recentTestsList.innerHTML = results.join('');
+        if (snapshot.docs.length > 0) {
+            lastVisibleRecentDoc = snapshot.docs[snapshot.docs.length - 1];
+        }
+
+        recentTestsList.innerHTML = results.map(test => buildRecentTestHTML(test)).join('');
+
+        if (results.length === RECENT_TESTS_PAGE_SIZE && loadMoreContainer) {
+            loadMoreContainer.style.display = 'block';
+        } else if (loadMoreContainer) {
+            loadMoreContainer.style.display = 'none';
+        }
+
+        if (loadMoreBtn) {
+            loadMoreBtn.onclick = async () => {
+                await loadMoreRecentTests(userId);
+            };
+        }
     }, (error) => {
         console.error("Error loading recent tests:", error);
         if (recentTestsList) {
             recentTestsList.innerHTML = '<p class="error">Error loading recent tests. Please refresh.</p>';
         }
     });
+}
+
+async function loadMoreRecentTests(userId) {
+    if (!lastVisibleRecentDoc) {
+        console.log("No cursor, cannot load more");
+        return;
+    }
+
+    const recentTestsList = document.getElementById('recentTestsList');
+    const loadMoreBtn = document.getElementById('loadMoreRecentBtn');
+    const loadMoreContainer = document.getElementById('recentTestsMore');
+
+    if (loadMoreBtn) {
+        loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+        loadMoreBtn.disabled = true;
+    }
+
+    const q = query(
+        collection(db, "test_results"),
+        where("userId", "==", userId),
+        orderBy("completedAt", "desc"),
+        startAfter(lastVisibleRecentDoc),
+        limit(RECENT_TESTS_PAGE_SIZE)
+    );
+
+    try {
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+            if (loadMoreBtn) {
+                loadMoreBtn.innerHTML = '<i class="fas fa-check"></i> No more tests';
+                loadMoreBtn.disabled = true;
+            }
+            return;
+        }
+
+        const newResults = [];
+        snapshot.forEach((doc) => {
+            newResults.push({ id: doc.id, ...doc.data() });
+        });
+
+        const existingHTML = recentTestsList.innerHTML;
+        recentTestsList.innerHTML = existingHTML + newResults.map(test => buildRecentTestHTML(test)).join('');
+
+        lastVisibleRecentDoc = snapshot.docs[snapshot.docs.length - 1];
+
+        if (newResults.length < RECENT_TESTS_PAGE_SIZE && loadMoreContainer) {
+            loadMoreContainer.style.display = 'none';
+        } else if (loadMoreContainer) {
+            loadMoreContainer.style.display = 'block';
+        }
+
+    } catch (error) {
+        console.error("Error loading more tests:", error);
+        alert("Failed to load more tests. Please try again.");
+    } finally {
+        if (loadMoreBtn) {
+            loadMoreBtn.innerHTML = '<i class="fas fa-chevron-down"></i> Load More';
+            loadMoreBtn.disabled = false;
+        }
+    }
+}
+
+function buildRecentTestHTML(test) {
+    const mode = test.mode;
+    const completedAt = test.completedAt ? convertTimestamp(test.completedAt) : null;
+    const dateStr = completedAt ? completedAt.toLocaleDateString() : 'Unknown date';
+
+    let typeIcon = '';
+    let typeLabel = '';
+    let mainContent = '';
+
+    switch (mode) {
+        case 'quick':
+            typeIcon = '<i class="fas fa-bolt"></i>';
+            typeLabel = 'Quick Test';
+            mainContent = renderQuickTest(test, dateStr);
+            break;
+        case 'waec_neco':
+            typeIcon = '<i class="fas fa-school"></i>';
+            typeLabel = 'WAEC/NECO';
+            mainContent = renderWaecNecoTest(test, dateStr);
+            break;
+        case 'jamb_drill':
+            typeIcon = '<i class="fas fa-graduation-cap"></i>';
+            typeLabel = 'JAMB Drill';
+            mainContent = renderJambDrillTest(test, dateStr);
+            break;
+        default:
+            typeIcon = '<i class="fas fa-pencil-alt"></i>';
+            typeLabel = 'Test';
+            mainContent = renderUnknownTest(test, dateStr);
+    }
+
+    return `
+        <div class="recent-test-item">
+            <div class="test-header">
+                <div class="test-type-badge" title="${typeLabel}">${typeIcon}</div>
+                <div class="test-date">${escapeHtml(dateStr)}</div>
+            </div>
+            ${mainContent}
+        </div>
+    `;
 }
 
 function renderQuickTest(test, dateStr) {
@@ -617,9 +691,7 @@ function renderWaecNecoTest(test, dateStr) {
 
     let subjectRow = '';
 
-    // If per-subject scores exist, display them
     if (Object.keys(subjectScores).length > 0) {
-        // For WAEC/NECO, there's only one subject, but we still iterate to be safe
         for (const [subjValue, scoreObj] of Object.entries(subjectScores)) {
             const subjName = subjValue.charAt(0).toUpperCase() + subjValue.slice(1);
             const raw = scoreObj.correct !== undefined ? scoreObj.correct : (scoreObj.raw || 0);
@@ -627,7 +699,6 @@ function renderWaecNecoTest(test, dateStr) {
             subjectRow += `<div class="subject-score-row"><span class="subject-name">${escapeHtml(subjName)}:</span> <span class="score-value">${raw}/${total}</span></div>`;
         }
     } else {
-        // Fallback to showing only total score
         subjectRow = `<div class="subject-score-row"><span class="subject-name">Total:</span> <span class="score-value">${totalRaw}/${totalQuestions}</span></div>`;
     }
 
@@ -644,13 +715,12 @@ function renderWaecNecoTest(test, dateStr) {
 
 function renderJambDrillTest(test, dateStr) {
     const subjectScores = test.subjectScores || {};
-    const subjectsList = test.subjects || []; // array of { value, name, count }
+    const subjectsList = test.subjects || [];
     const totalRaw = test.rawScore !== undefined ? test.rawScore : 0;
     const totalQuestions = test.totalQuestions || 0;
 
     let subjectRows = '';
 
-    // Build rows for each subject in the test's subjects list
     if (subjectsList.length > 0) {
         for (const subj of subjectsList) {
             const subjValue = subj.value;
@@ -662,7 +732,6 @@ function renderJambDrillTest(test, dateStr) {
             subjectRows += `<div class="subject-score-row"><span class="subject-name">${escapeHtml(subjName)}:</span> <span class="score-value">${raw}/${total}</span></div>`;
         }
     } else if (Object.keys(subjectScores).length > 0) {
-        // Fallback: iterate over subjectScores if subjectsList missing
         for (const [subjValue, scoreObj] of Object.entries(subjectScores)) {
             const subjName = subjValue.charAt(0).toUpperCase() + subjValue.slice(1);
             const raw = scoreObj.correct !== undefined ? scoreObj.correct : (scoreObj.raw || 0);
@@ -670,12 +739,10 @@ function renderJambDrillTest(test, dateStr) {
             subjectRows += `<div class="subject-score-row"><span class="subject-name">${escapeHtml(subjName)}:</span> <span class="score-value">${raw}/${total}</span></div>`;
         }
     } else {
-        // No subject data, show only total
         subjectRows = `<div class="subject-score-row"><span class="subject-name">Total:</span> <span class="score-value">${totalRaw}/${totalQuestions}</span></div>`;
     }
 
-    // Compute total possible (sum of counts from subjectsList)
-    let totalPossible = 180; // default
+    let totalPossible = 180;
     if (subjectsList.length) {
         totalPossible = subjectsList.reduce((sum, s) => sum + (s.count || 0), 0);
     }
@@ -704,7 +771,6 @@ function renderUnknownTest(test, dateStr) {
     `;
 }
 
-// Helper to prevent XSS
 function escapeHtml(str) {
     if (!str) return '';
     return str
@@ -850,7 +916,6 @@ async function getMostImprovedTopic(userId) {
     }
 }
 
-// ========== RENDER ANALYTICS ==========
 function renderWeeklyChart(data) {
     const ctx = document.getElementById('weeklyTrendChart')?.getContext('2d');
     if (!ctx) return;
@@ -1717,7 +1782,6 @@ function initDashboard() {
         }
     });
 
-    // Event listeners (only for buttons, NOT for upgrade links inside notices)
     if (startQuickTestBtn) startQuickTestBtn.addEventListener('click', startQuickTest);
     if (startJambDrillBtn) startJambDrillBtn.addEventListener('click', startJambDrill);
     if (startWaecNecoDrillBtn) startWaecNecoDrillBtn.addEventListener('click', startWaecNecoDrill);
@@ -1736,9 +1800,8 @@ function initDashboard() {
     if (profileUpload) profileUpload.addEventListener('change', handleProfileUpload);
     if (upgradeBtn) upgradeBtn.addEventListener('click', upgradeToPremium);
 
-    populateWaecNecoSubjects(); // initial population
+    populateWaecNecoSubjects();
 }
 
 // Start everything
 initDashboard();
-

@@ -307,6 +307,12 @@ if ('serviceWorker' in navigator) {
       <div id="recentTestsContainer" class="recent-tests">
         <h3>Recent Tests</h3>
         <div id="recentTestsList"></div>
+        <!-- "Load More" button container (hidden by default) -->
+        <div id="recentTestsMore" class="load-more-container" style="display:none; text-align: center; margin-top: 1rem;">
+          <button id="loadMoreRecentBtn" class="load-more-btn">
+            <i class="fas fa-chevron-down"></i> Load More
+          </button>
+        </div>
       </div>
     </section>
 
