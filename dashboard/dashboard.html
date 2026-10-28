@@ -62,12 +62,13 @@ if ('serviceWorker' in navigator) {
 <main class="dashboard">
   <div class="dashboard-container">
 
-    <!-- Welcome Section -->
+    <!-- Welcome Section (NO card) -->
     <section class="welcome-section">
       <div class="welcome-content">
         <div class="user-welcome">
-          <h1>Welcome, <span id="userName"></span>!</h1>
-          <p>Ready to ace your next test? <i class="fas fa-rocket"></i></p>
+          <span class="greeting-pill"><i class="fas fa-circle"></i> Welcome back</span>
+          <h1 class="user-name">Hi, <span id="userName">Student</span> <span class="wave">👋</span></h1>
+          <p class="welcome-subtitle">Ready to ace your next test?</p>
         </div>
         <div class="profile-picture">
           <img src="https://via.placeholder.com/100/4285F4/FFFFFF?text=SB" alt="Profile" class="profile-img" id="profileImg">
@@ -79,22 +80,21 @@ if ('serviceWorker' in navigator) {
       </div>
     </section>
 
-    <!-- Stats Cards -->
+    <!-- Stats — single elegant card -->
     <section class="stats-section">
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+      <div class="stats-card">
+        <div class="stat-item">
+          <div class="stat-icon stat-icon-blue"><i class="fas fa-check-circle"></i></div>
           <div class="stat-content">
-            <h3>Completed Tests</h3>
             <div class="stat-number" id="completedTests">0</div>
-            <div class="stat-label">tests taken</div>
+            <div class="stat-label">Tests Completed</div>
           </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-icon stat-icon-green"><i class="fas fa-chart-line"></i></div>
           <div class="stat-content">
-            <h3>Average Score</h3>
-            <div class="stat-number" id="averageScore">0<span class="percent">%</span></div>
+            <div class="stat-number"><span id="averageScore">0</span><span class="percent">%</span></div>
             <div class="stat-label" id="performanceMessage">Start practicing!</div>
           </div>
         </div>
@@ -109,34 +109,34 @@ if ('serviceWorker' in navigator) {
       </div>
       <div class="features-grid">
         <a href="quick-test.html" class="feature-card">
-          <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+          <div class="feature-icon feature-icon-blue"><i class="fas fa-bolt"></i></div>
           <h3>Quick Test</h3>
-          <p>20 questions • 20 mins • Any subject</p>
+          <p>20 questions • 20 mins</p>
         </a>
         <a href="waec-neco.html" class="feature-card">
-          <div class="feature-icon"><i class="fas fa-school"></i></div>
-          <h3>WAEC/NECO Drill</h3>
+          <div class="feature-icon feature-icon-orange"><i class="fas fa-school"></i></div>
+          <h3>WAEC/NECO</h3>
           <p>50 questions • 40 mins</p>
         </a>
         <a href="jamb.html" class="feature-card">
-          <div class="feature-icon"><i class="fas fa-graduation-cap"></i></div>
+          <div class="feature-icon feature-icon-purple"><i class="fas fa-graduation-cap"></i></div>
           <h3>JAMB Drill</h3>
-          <p>4 subjects • 120 mins • Scored /400</p>
+          <p>4 subjects • 120 mins</p>
         </a>
         <a href="leaderboard.html" class="feature-card">
-          <div class="feature-icon"><i class="fas fa-ranking-star"></i></div>
+          <div class="feature-icon feature-icon-gold"><i class="fas fa-ranking-star"></i></div>
           <h3>Leaderboard</h3>
-          <p>Global rankings & top performers</p>
+          <p>Global rankings</p>
         </a>
         <a href="recent.html" class="feature-card">
-          <div class="feature-icon"><i class="fas fa-history"></i></div>
+          <div class="feature-icon feature-icon-pink"><i class="fas fa-history"></i></div>
           <h3>Recent Tests</h3>
-          <p>Review your last test results</p>
+          <p>Review results</p>
         </a>
       </div>
     </section>
 
-    <!-- ANALYTICS SECTION -->
+    <!-- Performance Analytics -->
     <section class="analytics-section">
       <div class="section-header">
         <h2><i class="fas fa-chart-line"></i> Performance Analytics</h2>
@@ -145,7 +145,7 @@ if ('serviceWorker' in navigator) {
       <div class="analytics-grid-wrapper">
         <div class="analytics-grid">
           <div class="analytics-card">
-            <h3><i class="fas fa-calendar-week"></i> Weekly Trend (Last 7 days)</h3>
+            <h3><i class="fas fa-calendar-week"></i> Weekly Trend</h3>
             <div class="chart-container"><canvas id="weeklyTrendChart"></canvas></div>
           </div>
           <div class="analytics-card">
@@ -153,7 +153,7 @@ if ('serviceWorker' in navigator) {
             <div class="chart-container"><canvas id="monthlyChart"></canvas></div>
           </div>
           <div class="analytics-card small">
-            <h3><i class="fas fa-clock"></i> Avg Time / Question</h3>
+            <h3><i class="fas fa-clock"></i> Avg Time/Question</h3>
             <div class="big-number" id="avgTimeDisplay">—</div>
           </div>
           <div class="analytics-card small">
@@ -162,7 +162,7 @@ if ('serviceWorker' in navigator) {
             <div class="small-note" id="bestSubjectScore"></div>
           </div>
           <div class="analytics-card small">
-            <h3><i class="fas fa-arrow-up"></i> Most Improved Topic</h3>
+            <h3><i class="fas fa-arrow-up"></i> Most Improved</h3>
             <div id="improvedTopicDisplay" class="big-number">—</div>
             <div class="small-note" id="improvedTopicDelta"></div>
           </div>
