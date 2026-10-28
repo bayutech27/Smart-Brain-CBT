@@ -9,9 +9,13 @@ import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/
 
 // ========== CONSTANTS ==========
 const WAEC_NECO_QUESTIONS = 50;
-const WAEC_NECO_TIME = 40 * 60; // 40 minutes in seconds
+const WAEC_NECO_TIME = 40 * 60;
 const QUESTIONS_TO_FETCH = 20;
-const RECENT_TESTS_PAGE_SIZE = 5; // initial 5, then 5 per "See more"
+const RECENT_TESTS_PAGE_SIZE = 5;
+
+// Default Acadex return URL — used only if the user doc and localStorage
+// are both missing an acadexReturnUrl. Adjust if Acadex moves.
+const DEFAULT_ACADEX_RETURN_URL = 'https://acadex.vercel.app/student/student-portal.html';
 
 const EXAM_TYPE_MAP = {
     'waec': 'WAEC/NECO',
@@ -39,7 +43,7 @@ const ALL_SUBJECTS = [
     { value: 'yoruba', name: 'Yoruba' }
 ];
 
-// ========== DOM ELEMENTS (with null checks) ==========
+// ========== DOM ELEMENTS ==========
 const getElement = (id) => document.getElementById(id);
 
 const startQuickTestBtn = getElement('startQuickTestBtn');
@@ -49,6 +53,7 @@ const logoutBtn = getElement('logoutBtn');
 const userName = getElement('userName');
 const profileUpload = getElement('profileUpload');
 const profileImg = getElement('profileImg');
+const returnToAcadexBtn = getElement('returnToAcadexBtn');
 
 // JAMB Drill
 const additionalSubjectsDiv = getElement('additionalSubjects');
@@ -156,6 +161,38 @@ function escapeHtml(str) {
         .replace(/'/g, "&#39;");
 }
 
+// ========== RETURN TO ACADEX ==========
+// Shows a "Return to Acadex" button ONLY when the logged-in student
+// came from Acadex (i.e. their Firestore user doc has acadexUid).
+function setupReturnToAcadexLink() {
+    if (!returnToAcadexBtn) return;
+
+    const isFromAcadex = !!(currentUserData && currentUserData.acadexUid);
+    if (!isFromAcadex) {
+        returnToAcadexBtn.style.display = 'none';
+        return;
+    }
+
+    // Resolve the return URL: user doc → localStorage → default
+    let returnUrl =
+        (currentUserData && currentUserData.acadexReturnUrl) ||
+        localStorage.getItem('acadexReturnUrl') ||
+        DEFAULT_ACADEX_RETURN_URL;
+
+    // Basic safety check — only navigate to http(s) URLs
+    if (typeof returnUrl !== 'string' || !/^https?:\/\//i.test(returnUrl)) {
+        returnUrl = DEFAULT_ACADEX_RETURN_URL;
+    }
+
+    // Persist for subsequent visits
+    try { localStorage.setItem('acadexReturnUrl', returnUrl); } catch (e) { /* non-fatal */ }
+
+    returnToAcadexBtn.style.display = 'inline-flex';
+    returnToAcadexBtn.onclick = () => {
+        window.location.href = returnUrl;
+    };
+}
+
 // ========== USER DATA LOADING ==========
 async function loadUserData(userId) {
     try {
@@ -170,6 +207,9 @@ async function loadUserData(userId) {
         }
 
         loadUserProfile(currentUserData);
+
+        // NEW: Show Return to Acadex button when applicable
+        setupReturnToAcadexLink();
 
         if (document.getElementById('completedTests') || document.getElementById('averageScore')) {
             setupRealTimeStats(userId);
@@ -257,7 +297,7 @@ function updateStatistics(snapshot) {
     if (performanceMessage) performanceMessage.textContent = message;
 }
 
-// ========== RECENT TESTS (5 initial + "See more" loads 5 more) ==========
+// ========== RECENT TESTS ==========
 async function loadRecentTests(userId) {
     const recentTestsList = document.getElementById('recentTestsList');
     const loadMoreContainer = document.getElementById('recentTestsMore');
@@ -1292,7 +1332,6 @@ function initDashboard() {
     });
     if (profileUpload) profileUpload.addEventListener('change', handleProfileUpload);
 
-    // "Show all Subjects" toggle for JAMB
     if (toggleAllSubjectsBtn && additionalSubjectsDiv) {
         toggleAllSubjectsBtn.addEventListener('click', () => {
             const isHidden = additionalSubjectsDiv.style.display === 'none' || additionalSubjectsDiv.style.display === '';
