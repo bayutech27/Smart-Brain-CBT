@@ -44,23 +44,9 @@
       animation: spin 0.9s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    h1 {
-      font-size: 18px;
-      margin: 0 0 8px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-    p {
-      margin: 0;
-      font-size: 13px;
-      color: rgba(235,235,245,0.65);
-      line-height: 1.6;
-    }
-    .icon {
-      font-size: 36px;
-      margin-bottom: 12px;
-      display: block;
-    }
+    h1 { font-size: 18px; margin: 0 0 8px; font-weight: 700; letter-spacing: -0.02em; }
+    p { margin: 0; font-size: 13px; color: rgba(235,235,245,0.65); line-height: 1.6; }
+    .icon { font-size: 36px; margin-bottom: 12px; display: block; }
     .btn {
       display: inline-block;
       margin-top: 20px;
@@ -99,8 +85,6 @@
     } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
     // Deterministic password derivation — MUST stay in sync with Acadex.
-    // The same acadexUid always yields the same SmartBrain password,
-    // so the same student always lands on the same account.
     function deriveSmartBrainPassword(acadexUid) {
       return 'SB-' + acadexUid + 'Aa1!';
     }
@@ -108,7 +92,6 @@
     function showError(titleText, messageHtml) {
       const spinner = document.getElementById('spinner');
       if (spinner) spinner.style.display = 'none';
-
       document.getElementById('title').innerHTML =
         '<span class="icon">⚠️</span>' + titleText;
       document.getElementById('status').innerHTML = messageHtml;
@@ -127,8 +110,14 @@
     const acadexUid = (params.get('u') || '').trim();
     const name      = (params.get('n') || '').trim() || 'Student';
     const schoolId  = (params.get('s') || '').trim();
+    const returnUrl = (params.get('r') || '').trim();
 
-    // Requirement: must come from an enrolled Acadex student
+    // Persist return URL to localStorage so the dashboard can offer
+    // a "Return to Acadex" button even across navigations & refreshes.
+    if (returnUrl) {
+      try { localStorage.setItem('acadexReturnUrl', returnUrl); } catch (e) { /* non-fatal */ }
+    }
+
     if (!email || !acadexUid || !schoolId) {
       showError(
         'Cannot sign you in',
@@ -136,13 +125,10 @@
       );
     } else {
       const password = deriveSmartBrainPassword(acadexUid);
-
-      // Soft timeout hint after 12 s (does not abort the request)
       const slowTimer = setTimeout(showSlowNotice, 12000);
 
       (async () => {
         try {
-          // 1) Try to sign in first
           let userCredential = null;
           try {
             userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -155,16 +141,12 @@
 
             if (!isMissing) throw loginErr;
 
-            // 2) Account doesn't exist yet → create it
             try {
               userCredential = await createUserWithEmailAndPassword(auth, email, password);
-
               try {
                 await updateProfile(userCredential.user, { displayName: name });
               } catch (p) { /* non-fatal */ }
 
-              // Pre-create the SmartBrain user document with Acadex metadata.
-              // dashboard.js uses setDoc(..., { merge: true }) so this is safe.
               const userRef = doc(db, 'users', userCredential.user.uid);
               await setDoc(userRef, {
                 fullName: name,
@@ -176,6 +158,7 @@
                 tutorialCenterId: null,
                 acadexUid: acadexUid,
                 acadexSchoolId: schoolId,
+                acadexReturnUrl: returnUrl || null,
                 source: 'acadex'
               }, { merge: true });
             } catch (createErr) {
@@ -191,20 +174,24 @@
             }
           }
 
-          // 3) Best-effort: stamp acadex metadata onto pre-existing accounts
+          // Best-effort: stamp any missing Acadex metadata onto existing accounts
           try {
             const userRef = doc(db, 'users', userCredential.user.uid);
             const snap = await getDoc(userRef);
-            if (snap.exists() && !snap.data().acadexUid) {
-              await setDoc(userRef, {
-                acadexUid: acadexUid,
-                acadexSchoolId: schoolId,
-                source: 'acadex'
-              }, { merge: true });
+            if (snap.exists()) {
+              const data = snap.data();
+              const updates = {};
+              if (!data.acadexUid) updates.acadexUid = acadexUid;
+              if (!data.acadexSchoolId) updates.acadexSchoolId = schoolId;
+              if (!data.acadexReturnUrl && returnUrl) updates.acadexReturnUrl = returnUrl;
+              if (!data.source) updates.source = 'acadex';
+              if (Object.keys(updates).length > 0) {
+                await setDoc(userRef, updates, { merge: true });
+              }
             }
           } catch (e) { /* non-fatal */ }
 
-          // 4) Success → SmartBrain practice dashboard
+          // Success → SmartBrain practice dashboard
           document.getElementById('spinner').style.display = 'none';
           document.getElementById('title').textContent = 'Success!';
           document.getElementById('status').textContent = 'Opening your practice dashboard…';
