@@ -1,8 +1,7 @@
 /* =========================================================
    DASHBOARD.CSS — iOS-INSPIRED DARK UI
-   Pure black base • vivid mesh gradient • frosted glass cards
-   iOS system colors • pill buttons • SF Pro font stack
-   Preserves every class used by other dashboard pages.
+   Deep space blue-black • aurora mesh • frosted glass
+   Subtle grain • pill buttons • SF Pro font stack
    ========================================================= */
 
 /* -------------------------
@@ -10,9 +9,9 @@
 ------------------------- */
 :root {
   /* Backgrounds */
-  --bg-primary: #000000;
-  --bg-card: rgba(28, 28, 30, 0.72);
-  --bg-elevated: rgba(44, 44, 46, 0.85);
+  --bg-primary: #06060a;
+  --bg-card: rgba(26, 27, 32, 0.72);
+  --bg-elevated: rgba(44, 46, 54, 0.85);
   --bg-input: rgba(118, 118, 128, 0.24);
 
   /* Text */
@@ -32,9 +31,9 @@
   --accent-purple: #bf5af2;
   --accent-teal: #64d2ff;
 
-  /* Borders & shadows */
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
+  /* Borders & shadows (slightly blue-tinted for cohesion) */
+  --border-color: rgba(140, 155, 200, 0.10);
+  --border-strong: rgba(160, 175, 220, 0.18);
   --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.5);
   --shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.6);
@@ -51,19 +50,35 @@
 
 /* -------------------------
    GLOBAL DASHBOARD LAYOUT
+   — iOS-style aurora mesh background + subtle grain
 ------------------------- */
 .dashboard {
+  position: relative;
   min-height: 100vh;
   padding: 20px;
   font-family: var(--font-stack);
   color: var(--text-primary);
-  background-color: var(--bg-primary);
+  background-color: #06060a;
   background-image:
-    radial-gradient(ellipse 70% 50% at 15% 0%, rgba(10, 132, 255, 0.22), transparent 60%),
-    radial-gradient(ellipse 70% 55% at 90% 5%, rgba(191, 90, 242, 0.18), transparent 60%),
-    radial-gradient(ellipse 90% 50% at 50% 100%, rgba(255, 55, 95, 0.12), transparent 60%);
-  background-attachment: fixed;
+    radial-gradient(ellipse 80% 55% at 8% 0%, rgba(10, 132, 255, 0.22), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 92% 5%, rgba(191, 90, 242, 0.20), transparent 55%),
+    radial-gradient(ellipse 90% 60% at 50% 105%, rgba(100, 210, 255, 0.12), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 0% 90%, rgba(255, 55, 95, 0.10), transparent 55%),
+    linear-gradient(180deg, #0a0a10 0%, #050507 60%, #06060a 100%);
   background-repeat: no-repeat;
+}
+
+/* Subtle grain overlay — the iOS "expensive dark" feel */
+.dashboard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
 }
 
 .dashboard-container {
@@ -237,7 +252,7 @@
   gap: 4px;
   padding: 20px 18px;
   border-radius: var(--radius-lg);
-  background: linear-gradient(145deg, rgba(28, 28, 30, 0.9), rgba(18, 18, 22, 0.9));
+  background: linear-gradient(145deg, rgba(28, 28, 34, 0.9), rgba(16, 17, 22, 0.9));
   border: 1px solid var(--border-color);
   box-shadow:
     var(--shadow-md),
@@ -369,7 +384,7 @@
   position: relative;
   padding: 16px;
   border-radius: var(--radius);
-  background: linear-gradient(150deg, rgba(28, 28, 30, 0.9), rgba(18, 18, 22, 0.85));
+  background: linear-gradient(150deg, rgba(28, 28, 34, 0.9), rgba(16, 17, 22, 0.85));
   border: 1px solid var(--border-color);
   box-shadow:
     var(--shadow-sm),
@@ -462,7 +477,7 @@
 }
 
 .analytics-card {
-  background: linear-gradient(150deg, rgba(28, 28, 30, 0.9), rgba(18, 18, 22, 0.85));
+  background: linear-gradient(150deg, rgba(28, 28, 34, 0.9), rgba(16, 17, 22, 0.85));
   border-radius: var(--radius);
   padding: 18px;
   border: 1px solid var(--border-color);
@@ -533,10 +548,10 @@
 }
 
 /* -------------------------
-   FORM STYLES (used by quick-test / waec-neco / jamb pages)
+   FORM STYLES (quick-test / waec-neco / jamb)
 ------------------------- */
 .practice-form {
-  background: linear-gradient(150deg, rgba(28, 28, 30, 0.9), rgba(18, 18, 22, 0.85));
+  background: linear-gradient(150deg, rgba(28, 28, 34, 0.9), rgba(16, 17, 22, 0.85));
   border-radius: var(--radius);
   padding: 20px;
   border: 1px solid var(--border-color);
@@ -732,7 +747,7 @@
    RECENT TESTS (recent.html)
 ------------------------- */
 .recent-tests-section {
-  background: linear-gradient(150deg, rgba(28, 28, 30, 0.9), rgba(18, 18, 22, 0.85));
+  background: linear-gradient(150deg, rgba(28, 28, 34, 0.9), rgba(16, 17, 22, 0.85));
   border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 20px;
@@ -766,7 +781,7 @@
 }
 
 .recent-test-item {
-  background: rgba(20, 20, 24, 0.85);
+  background: rgba(20, 20, 26, 0.85);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   transition: var(--transition);
@@ -925,7 +940,7 @@
 }
 
 .leaderboard-card {
-  background: linear-gradient(150deg, rgba(28, 28, 30, 0.9), rgba(18, 18, 22, 0.85));
+  background: linear-gradient(150deg, rgba(28, 28, 34, 0.9), rgba(16, 17, 22, 0.85));
   border-radius: var(--radius);
   padding: 18px;
   border: 1px solid var(--border-color);
@@ -969,7 +984,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: rgba(20, 20, 24, 0.85);
+  background: rgba(20, 20, 26, 0.85);
   border-radius: 12px;
   border: 1px solid var(--border-color);
   gap: 10px;
@@ -1037,7 +1052,7 @@
 }
 
 /* -------------------------
-   FOOTER — Pill buttons on transparent base
+   FOOTER — compact centred pill buttons
 ------------------------- */
 .dashboard-footer {
   margin-top: 32px;
@@ -1054,35 +1069,41 @@
 .footer-nav {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
 }
 
 .home-btn,
 .logout-btn {
-  flex: 1;
-  padding: 15px 20px;
+  flex: 0 1 auto;
+  min-width: 150px;
+  max-width: 260px;
+  padding: 12px 24px;
   border-radius: 100px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.01em;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   transition: var(--transition);
   cursor: pointer;
   border: none;
   font-family: inherit;
+  text-decoration: none;
 }
 
 .home-btn {
-  background: rgba(44, 44, 46, 0.9);
+  background: rgba(44, 46, 54, 0.9);
   color: var(--text-primary);
   border: 1px solid var(--border-strong);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .home-btn:hover {
-  background: rgba(58, 58, 60, 0.95);
+  background: rgba(58, 60, 68, 0.95);
   transform: translateY(-2px);
 }
 
@@ -1150,6 +1171,12 @@
   .stats-card {
     padding: 24px 22px;
   }
+  .home-btn,
+  .logout-btn {
+    min-width: 170px;
+    padding: 13px 28px;
+    font-size: 14.5px;
+  }
 }
 
 /* -------------------------
@@ -1200,13 +1227,11 @@
   .big-number {
     font-size: 34px;
   }
-  .footer-nav {
-    justify-content: center;
-  }
   .home-btn,
   .logout-btn {
-    flex: 0 0 auto;
     min-width: 180px;
+    padding: 14px 30px;
+    font-size: 15px;
   }
 }
 
@@ -1253,6 +1278,12 @@
   }
   .big-number {
     font-size: 26px;
+  }
+  .home-btn,
+  .logout-btn {
+    min-width: 140px;
+    padding: 11px 20px;
+    font-size: 13px;
   }
 }
 
