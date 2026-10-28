@@ -98,21 +98,21 @@ function showWelcomeBanner(userNameText) {
     const banner = document.createElement('div');
     banner.id = 'welcomeBanner';
     banner.style.cssText = `
-        background: linear-gradient(135deg, #30d158, #4ddc75);
-        color: #000;
+        background: linear-gradient(135deg, #34c759, #4ddc75);
+        color: #ffffff;
         padding: 1rem 1.2rem;
         border-radius: 16px;
         margin-bottom: 1.5rem;
         text-align: center;
         font-size: 15px;
         font-weight: 600;
-        box-shadow: 0 8px 24px rgba(48, 209, 88, 0.35);
+        box-shadow: 0 8px 24px rgba(52, 199, 89, 0.35);
         animation: fadeIn 0.5s;
     `;
     banner.innerHTML = `
         🎉 Congratulations, <strong>${userNameText}</strong>! Your account is ready.
         <button onclick="this.parentElement.remove(); sessionStorage.removeItem('showWelcome');"
-                style="background: rgba(0,0,0,0.15); border: none; color: #000; padding: 0.35rem 1rem; border-radius: 100px; margin-left: 1rem; cursor: pointer; font-weight: 700; font-family: inherit;">
+                style="background: rgba(255,255,255,0.25); border: none; color: #ffffff; padding: 0.35rem 1rem; border-radius: 100px; margin-left: 1rem; cursor: pointer; font-weight: 700; font-family: inherit;">
             Dismiss
         </button>
     `;
@@ -664,11 +664,11 @@ function renderWeeklyChart(data) {
             datasets: [{
                 label: 'Avg Score %',
                 data: data.map(d => d.averageScore),
-                borderColor: '#0a84ff',
-                backgroundColor: 'rgba(10,132,255,0.15)',
+                borderColor: '#007aff',
+                backgroundColor: 'rgba(0, 122, 255, 0.12)',
                 tension: 0.35,
                 fill: true,
-                pointBackgroundColor: '#0a84ff',
+                pointBackgroundColor: '#007aff',
                 pointBorderColor: '#ffffff',
                 pointBorderWidth: 2,
                 pointRadius: 4
@@ -677,10 +677,20 @@ function renderWeeklyChart(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: '#ebebf5' } } },
+            plugins: {
+                legend: { labels: { color: '#475569' } }
+            },
             scales: {
-                y: { beginAtZero: true, max: 100, ticks: { color: '#a0a0a0' }, grid: { color: 'rgba(255,255,255,0.06)' } },
-                x: { ticks: { color: '#a0a0a0' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: 'rgba(15, 23, 42, 0.06)' }
+                },
+                x: {
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: 'rgba(15, 23, 42, 0.06)' }
+                }
             }
         }
     });
@@ -696,8 +706,8 @@ function renderMonthlyChart(data) {
             datasets: [{
                 label: 'Avg Score %',
                 data: data.map(d => d.averageScore),
-                backgroundColor: 'rgba(191, 90, 242, 0.7)',
-                borderColor: '#bf5af2',
+                backgroundColor: 'rgba(175, 82, 222, 0.85)',
+                borderColor: '#af52de',
                 borderWidth: 1,
                 borderRadius: 8
             }]
@@ -705,10 +715,20 @@ function renderMonthlyChart(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: '#ebebf5' } } },
+            plugins: {
+                legend: { labels: { color: '#475569' } }
+            },
             scales: {
-                y: { beginAtZero: true, max: 100, ticks: { color: '#a0a0a0' }, grid: { color: 'rgba(255,255,255,0.06)' } },
-                x: { ticks: { color: '#a0a0a0' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: 'rgba(15, 23, 42, 0.06)' }
+                },
+                x: {
+                    ticks: { color: '#94a3b8' },
+                    grid: { color: 'rgba(15, 23, 42, 0.06)' }
+                }
             }
         }
     });
@@ -1011,10 +1031,10 @@ function validateJambSubjectSelection() {
     if (!hint) return;
     if (checkboxes.length === 3) {
         hint.innerHTML = '✅ 3 subjects selected. Ready to start.';
-        hint.style.color = '#30d158';
+        hint.style.color = '#34c759';
     } else {
         hint.innerHTML = `Select exactly 3 subjects (currently ${checkboxes.length} selected)`;
-        hint.style.color = '#ff453a';
+        hint.style.color = '#ff3b30';
     }
 }
 
@@ -1302,7 +1322,7 @@ function setDefaultProfileImage() {
     let name = 'User';
     if (user && user.displayName) name = user.displayName.split(' ')[0];
     else if (user && user.email) name = user.email.split('@')[0];
-    profileImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0a84ff&color=fff&size=120&bold=true`;
+    profileImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=007aff&color=fff&size=120&bold=true`;
     profileImg.alt = "Default Profile";
     profileImg.innerHTML = '';
 }
