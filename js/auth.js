@@ -47,7 +47,8 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       console.log("Auth state changed - User logged out");
       if (path.includes("dashboard.html") || path.includes("admin.html") || path.includes("test.html")) {
-        window.location.href = "index.html";
+        // FIX: '../index.html' works from /dashboard/* AND from /admin.html
+        window.location.href = "../index.html";
       }
     }
   });
@@ -68,7 +69,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (role === "admin") {
           window.location.href = "admin.html";
         } else {
-          window.location.href = "dashboard.html";
+          // FIX: dashboard.html now lives inside /dashboard/
+          window.location.href = "dashboard/dashboard.html";
         }
       } else {
         console.log("No user document found, creating one...");
@@ -85,7 +87,8 @@ document.addEventListener("DOMContentLoaded", () => {
           alert("Admin account created. Redirecting to admin panel...");
           window.location.href = "admin.html";
         } else {
-          window.location.href = "dashboard.html";
+          // FIX
+          window.location.href = "dashboard/dashboard.html";
         }
       }
     } catch (error) {
@@ -99,7 +102,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isAdminEmail) {
         window.location.href = "admin.html";
       } else {
-        window.location.href = "dashboard.html";
+        // FIX
+        window.location.href = "dashboard/dashboard.html";
       }
     }
   }
@@ -269,8 +273,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (phoneNumber) phoneNumber.value = "";
       if (signUpPassword) signUpPassword.value = "";
       
-      // Redirect to dashboard
-      window.location.href = "dashboard.html";
+      // FIX: dashboard.html now lives inside /dashboard/
+      window.location.href = "dashboard/dashboard.html";
 
     } catch (error) {
       console.error("=== SIGNUP FAILED ===");
@@ -394,7 +398,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (role === "admin") {
           window.location.href = "admin.html";
         } else {
-          window.location.href = "dashboard.html";
+          // FIX
+          window.location.href = "dashboard/dashboard.html";
         }
       } else {
         console.error("❌ User document does not exist in Firestore");
@@ -426,7 +431,8 @@ document.addEventListener("DOMContentLoaded", () => {
           window.location.href = "admin.html";
         } else {
           alert("✅ Your account has been set up. You're on the FREE plan.\n\nRedirecting to dashboard...");
-          window.location.href = "dashboard.html";
+          // FIX
+          window.location.href = "dashboard/dashboard.html";
         }
       }
 
@@ -466,7 +472,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       await signOut(auth);
       console.log("User logged out successfully");
-      window.location.href = "index.html";
+      // FIX: '../index.html' works from /dashboard/* AND from /admin.html
+      window.location.href = "../index.html";
     } catch (error) {
       console.error("Logout error:", error);
       alert("Error logging out. Please try again.");
