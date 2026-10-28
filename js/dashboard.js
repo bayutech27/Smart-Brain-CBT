@@ -13,9 +13,8 @@ const WAEC_NECO_TIME = 40 * 60;
 const QUESTIONS_TO_FETCH = 20;
 const RECENT_TESTS_PAGE_SIZE = 5;
 
-// Default Acadex return URL — used only if the user doc and localStorage
-// are both missing an acadexReturnUrl. Adjust if Acadex moves.
 const DEFAULT_ACADEX_RETURN_URL = 'https://acadex.vercel.app/student/student-portal.html';
+const THEME_KEY = 'smartbrain-theme';
 
 const EXAM_TYPE_MAP = {
     'waec': 'WAEC/NECO',
@@ -54,6 +53,7 @@ const userName = getElement('userName');
 const profileUpload = getElement('profileUpload');
 const profileImg = getElement('profileImg');
 const returnToAcadexBtn = getElement('returnToAcadexBtn');
+const themeToggleBtn = getElement('themeToggleBtn');
 
 // JAMB Drill
 const additionalSubjectsDiv = getElement('additionalSubjects');
@@ -73,6 +73,84 @@ const performanceMessage = getElement('performanceMessage');
 let currentUserData = null;
 let unsubscribeStats = null;
 let lastVisibleRecentDoc = null;
+let weeklyChartInstance = null;
+let monthlyChartInstance = null;
+
+// ========== THEME ==========
+function getCurrentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* non-fatal */ }
+
+    if (themeToggleBtn) {
+        const icon = themeToggleBtn.querySelector('i');
+        if (icon) {
+            icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+        }
+        const label = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+        themeToggleBtn.setAttribute('aria-label', label);
+        themeToggleBtn.setAttribute('title', label);
+    }
+
+    refreshChartsTheme();
+}
+
+function initTheme() {
+    // Initial theme was already applied by the inline script in <head>.
+    // Sync the toggle button's icon to match.
+    const current = getCurrentTheme();
+    applyTheme(current);
+
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            const next = getCurrentTheme() === 'dark' ? 'light' : 'dark';
+            applyTheme(next);
+        });
+    }
+}
+
+function getChartTheme() {
+    const isDark = getCurrentTheme() === 'dark';
+    return {
+        isDark,
+        lineColor: isDark ? '#409cff' : '#007aff',
+        lineFill: isDark ? 'rgba(64, 156, 255, 0.18)' : 'rgba(0, 122, 255, 0.12)',
+        linePointBg: isDark ? '#409cff' : '#007aff',
+        linePointBorder: isDark ? '#151922' : '#ffffff',
+        barFill: isDark ? 'rgba(191, 90, 242, 0.85)' : 'rgba(175, 82, 222, 0.85)',
+        barBorder: isDark ? '#bf5af2' : '#af52de',
+        legendColor: isDark ? '#cbd5e1' : '#475569',
+        tickColor: isDark ? '#94a3b8' : '#94a3b8',
+        gridColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(15, 23, 42, 0.06)'
+    };
+}
+
+function refreshChartsTheme() {
+    const theme = getChartTheme();
+
+    [weeklyChartInstance, monthlyChartInstance].forEach(chart => {
+        if (!chart) return;
+        const ds = chart.data.datasets[0];
+        if (chart.config.type === 'line') {
+            ds.borderColor = theme.lineColor;
+            ds.backgroundColor = theme.lineFill;
+            ds.pointBackgroundColor = theme.linePointBg;
+            ds.pointBorderColor = theme.linePointBorder;
+        } else if (chart.config.type === 'bar') {
+            ds.backgroundColor = theme.barFill;
+            ds.borderColor = theme.barBorder;
+        }
+        if (chart.options.plugins?.legend?.labels) chart.options.plugins.legend.labels.color = theme.legendColor;
+        if (chart.options.scales?.y?.ticks) chart.options.scales.y.ticks.color = theme.tickColor;
+        if (chart.options.scales?.y?.grid) chart.options.scales.y.grid.color = theme.gridColor;
+        if (chart.options.scales?.x?.ticks) chart.options.scales.x.ticks.color = theme.tickColor;
+        if (chart.options.scales?.x?.grid) chart.options.scales.x.grid.color = theme.gridColor;
+        chart.update();
+    });
+}
 
 // ========== HELPER: SAFE TIMESTAMP CONVERSION ==========
 function convertTimestamp(value) {
@@ -161,36 +239,37 @@ function escapeHtml(str) {
         .replace(/'/g, "&#39;");
 }
 
-// ========== RETURN TO ACADEX ==========
-// Shows a "Return to Acadex" button ONLY when the logged-in student
-// came from Acadex (i.e. their Firestore user doc has acadexUid).
-function setupReturnToAcadexLink() {
-    if (!returnToAcadexBtn) return;
-
+// ========== ACADEX UI ==========
+// If the student came from Acadex (has acadexUid), show "Return to Acadex"
+// and hide the Logout button. Otherwise show Logout, hide Return.
+function setupAcadexUI() {
     const isFromAcadex = !!(currentUserData && currentUserData.acadexUid);
-    if (!isFromAcadex) {
-        returnToAcadexBtn.style.display = 'none';
-        return;
+
+    // Return to Acadex button
+    if (returnToAcadexBtn) {
+        if (isFromAcadex) {
+            let returnUrl =
+                currentUserData.acadexReturnUrl ||
+                localStorage.getItem('acadexReturnUrl') ||
+                DEFAULT_ACADEX_RETURN_URL;
+
+            if (typeof returnUrl !== 'string' || !/^https?:\/\//i.test(returnUrl)) {
+                returnUrl = DEFAULT_ACADEX_RETURN_URL;
+            }
+
+            try { localStorage.setItem('acadexReturnUrl', returnUrl); } catch (e) { /* non-fatal */ }
+
+            returnToAcadexBtn.style.display = 'inline-flex';
+            returnToAcadexBtn.onclick = () => { window.location.href = returnUrl; };
+        } else {
+            returnToAcadexBtn.style.display = 'none';
+        }
     }
 
-    // Resolve the return URL: user doc → localStorage → default
-    let returnUrl =
-        (currentUserData && currentUserData.acadexReturnUrl) ||
-        localStorage.getItem('acadexReturnUrl') ||
-        DEFAULT_ACADEX_RETURN_URL;
-
-    // Basic safety check — only navigate to http(s) URLs
-    if (typeof returnUrl !== 'string' || !/^https?:\/\//i.test(returnUrl)) {
-        returnUrl = DEFAULT_ACADEX_RETURN_URL;
+    // Logout button — hide for Acadex-origin students
+    if (logoutBtn) {
+        logoutBtn.style.display = isFromAcadex ? 'none' : 'inline-flex';
     }
-
-    // Persist for subsequent visits
-    try { localStorage.setItem('acadexReturnUrl', returnUrl); } catch (e) { /* non-fatal */ }
-
-    returnToAcadexBtn.style.display = 'inline-flex';
-    returnToAcadexBtn.onclick = () => {
-        window.location.href = returnUrl;
-    };
 }
 
 // ========== USER DATA LOADING ==========
@@ -208,8 +287,8 @@ async function loadUserData(userId) {
 
         loadUserProfile(currentUserData);
 
-        // NEW: Show Return to Acadex button when applicable
-        setupReturnToAcadexLink();
+        // NEW: Return to Acadex + hide Logout for Acadex users
+        setupAcadexUI();
 
         if (document.getElementById('completedTests') || document.getElementById('averageScore')) {
             setupRealTimeStats(userId);
@@ -657,19 +736,24 @@ async function getMostImprovedTopic(userId) {
 function renderWeeklyChart(data) {
     const ctx = document.getElementById('weeklyTrendChart')?.getContext('2d');
     if (!ctx) return;
-    new Chart(ctx, {
+    const theme = getChartTheme();
+    if (weeklyChartInstance) {
+        try { weeklyChartInstance.destroy(); } catch (e) { /* non-fatal */ }
+        weeklyChartInstance = null;
+    }
+    weeklyChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
             labels: data.map(d => d.date.slice(5)),
             datasets: [{
                 label: 'Avg Score %',
                 data: data.map(d => d.averageScore),
-                borderColor: '#007aff',
-                backgroundColor: 'rgba(0, 122, 255, 0.12)',
+                borderColor: theme.lineColor,
+                backgroundColor: theme.lineFill,
                 tension: 0.35,
                 fill: true,
-                pointBackgroundColor: '#007aff',
-                pointBorderColor: '#ffffff',
+                pointBackgroundColor: theme.linePointBg,
+                pointBorderColor: theme.linePointBorder,
                 pointBorderWidth: 2,
                 pointRadius: 4
             }]
@@ -678,18 +762,17 @@ function renderWeeklyChart(data) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { color: '#475569' } }
+                legend: { labels: { color: theme.legendColor } }
             },
             scales: {
                 y: {
-                    beginAtZero: true,
-                    max: 100,
-                    ticks: { color: '#94a3b8' },
-                    grid: { color: 'rgba(15, 23, 42, 0.06)' }
+                    beginAtZero: true, max: 100,
+                    ticks: { color: theme.tickColor },
+                    grid: { color: theme.gridColor }
                 },
                 x: {
-                    ticks: { color: '#94a3b8' },
-                    grid: { color: 'rgba(15, 23, 42, 0.06)' }
+                    ticks: { color: theme.tickColor },
+                    grid: { color: theme.gridColor }
                 }
             }
         }
@@ -699,15 +782,20 @@ function renderWeeklyChart(data) {
 function renderMonthlyChart(data) {
     const ctx = document.getElementById('monthlyChart')?.getContext('2d');
     if (!ctx) return;
-    new Chart(ctx, {
+    const theme = getChartTheme();
+    if (monthlyChartInstance) {
+        try { monthlyChartInstance.destroy(); } catch (e) { /* non-fatal */ }
+        monthlyChartInstance = null;
+    }
+    monthlyChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: data.map(d => d.month),
             datasets: [{
                 label: 'Avg Score %',
                 data: data.map(d => d.averageScore),
-                backgroundColor: 'rgba(175, 82, 222, 0.85)',
-                borderColor: '#af52de',
+                backgroundColor: theme.barFill,
+                borderColor: theme.barBorder,
                 borderWidth: 1,
                 borderRadius: 8
             }]
@@ -716,18 +804,17 @@ function renderMonthlyChart(data) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { color: '#475569' } }
+                legend: { labels: { color: theme.legendColor } }
             },
             scales: {
                 y: {
-                    beginAtZero: true,
-                    max: 100,
-                    ticks: { color: '#94a3b8' },
-                    grid: { color: 'rgba(15, 23, 42, 0.06)' }
+                    beginAtZero: true, max: 100,
+                    ticks: { color: theme.tickColor },
+                    grid: { color: theme.gridColor }
                 },
                 x: {
-                    ticks: { color: '#94a3b8' },
-                    grid: { color: 'rgba(15, 23, 42, 0.06)' }
+                    ticks: { color: theme.tickColor },
+                    grid: { color: theme.gridColor }
                 }
             }
         }
@@ -1329,6 +1416,9 @@ function setDefaultProfileImage() {
 
 // ========== INITIALIZE ==========
 function initDashboard() {
+    // Theme must be applied immediately, before auth resolves.
+    initTheme();
+
     onAuthStateChanged(auth, (user) => {
         if (!user) {
             window.location.href = '../index.html';
