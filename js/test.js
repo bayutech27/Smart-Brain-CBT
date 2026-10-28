@@ -1,4 +1,4 @@
-// js/test.js - Test Page with Firestore Integration
+// js/test.js - Test Page with Firestore Integration (No subscription limits)
 import { auth, db } from "./main.js";
 import {
     collection,
@@ -6,10 +6,8 @@ import {
     getDoc,
     getDocs,
     doc,
-    updateDoc,
     increment,
     serverTimestamp,
-    writeBatch,
     setDoc
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
@@ -21,12 +19,6 @@ import {
 // WEAKNESS DETECTION & RECOMMENDATION ENGINE
 // =============================================
 
-/**
- * Safely extracts a topic from a question object.
- * First checks for 'topic' field, then falls back to other common names.
- * @param {Object} question - The question object.
- * @returns {string} The topic name or 'General' if not found.
- */
 function getTopicFromQuestion(question) {
     if (question.topic && typeof question.topic === 'string' && question.topic.trim() !== '') {
         return question.topic.trim();
@@ -37,18 +29,11 @@ function getTopicFromQuestion(question) {
             return question[field].trim();
         }
     }
-    console.warn('No topic field found in question. Available keys:', Object.keys(question));
     return 'General';
 }
 
-/**
- * Generates a weakness report grouped by subject and topic.
- * @param {Array} userAnswers - Array of selected answers (A,B,C,D or null)
- * @param {Array} questions - Array of question objects (should contain topic, subject, correctAnswer)
- * @returns {Object} - Structure: { subject: "Subject", topics: [...] }
- */
 function generateWeaknessReport(userAnswers, questions) {
-  const topicMap = new Map(); // key: subject|topic -> { subject, topic, total, correct }
+  const topicMap = new Map();
 
   questions.forEach((q, index) => {
     const answer = userAnswers[index];
@@ -60,12 +45,7 @@ function generateWeaknessReport(userAnswers, questions) {
     const isCorrect = (answer === q.correctAnswer);
 
     if (!topicMap.has(key)) {
-      topicMap.set(key, {
-        subject,
-        topic,
-        total: 0,
-        correct: 0,
-      });
+      topicMap.set(key, { subject, topic, total: 0, correct: 0 });
     }
     const record = topicMap.get(key);
     record.total += 1;
@@ -77,11 +57,7 @@ function generateWeaknessReport(userAnswers, questions) {
     let level = 'Weak';
     if (accuracy >= 70) level = 'Strong';
     else if (accuracy >= 50) level = 'Average';
-    return {
-      ...record,
-      accuracy,
-      level,
-    };
+    return { ...record, accuracy, level };
   });
 
   const subjectGroups = {};
@@ -96,14 +72,8 @@ function generateWeaknessReport(userAnswers, questions) {
   }));
 }
 
-/**
- * Saves topic performance to Firestore under users/{userId}/topicStats/
- * @param {string} userId - Current user UID
- * @param {Array} topicStats - Array of subject objects with topic details
- */
 async function saveTopicStats(userId, topicStats) {
   if (!userId || !topicStats || topicStats.length === 0) return;
-
   try {
     for (const subjectData of topicStats) {
       for (const topic of subjectData.topics) {
@@ -120,21 +90,13 @@ async function saveTopicStats(userId, topicStats) {
         await addDoc(collection(db, "users", userId, "topicStats"), statData);
       }
     }
-    console.log("✅ Topic stats saved successfully");
   } catch (error) {
     console.error("❌ Error saving topic stats:", error);
   }
 }
 
-/**
- * Updates cumulative topic statistics for a user after a test.
- * Now stores lastAccuracy (previous accuracy) and lastPracticed timestamp.
- * @param {string} userId - Current user UID
- * @param {Array} topicStats - Output from generateWeaknessReport (array of subject objects)
- */
 async function updateCumulativeTopicStats(userId, topicStats) {
     if (!userId || !topicStats || topicStats.length === 0) return;
-
     try {
         for (const subjectData of topicStats) {
             for (const topic of subjectData.topics) {
@@ -168,17 +130,11 @@ async function updateCumulativeTopicStats(userId, topicStats) {
                 await setDoc(docRef, updateData, { merge: true });
             }
         }
-        console.log("✅ Cumulative topic stats updated with trend info");
     } catch (error) {
         console.error("❌ Error updating cumulative topic stats:", error);
     }
 }
 
-/**
- * Fetches all cumulative topic stats for a user.
- * @param {string} userId - Current user UID
- * @returns {Promise<Array>} Array of objects with subject, topic, totalAnswered, totalCorrect, etc.
- */
 async function fetchCumulativeTopicStats(userId) {
     if (!userId) return [];
     try {
@@ -204,12 +160,6 @@ async function fetchCumulativeTopicStats(userId) {
     }
 }
 
-/**
- * Calculates weak and strong topics from cumulative stats.
- * Includes lastAccuracy and lastPracticed for trend analysis.
- * @param {Array} cumulativeStats - Array of cumulative topic objects
- * @returns {Object} { weakTopics: Array, strongTopics: Array }
- */
 function calculateCumulativeWeakness(cumulativeStats) {
     const topics = cumulativeStats.map(stat => {
         const totalAnswered = stat.totalAnswered || 0;
@@ -240,12 +190,6 @@ function calculateCumulativeWeakness(cumulativeStats) {
     return { weakTopics, strongTopics };
 }
 
-/**
- * Generates smart, context‑aware recommendation messages based on weak topics.
- * Uses severity, trend, subject grouping, time‑based hints, and template rotation.
- * @param {Array} weakTopics - Array of enriched weak topic objects (with accuracy, lastAccuracy, lastPracticed)
- * @returns {Array} Up to 3 recommendation strings.
- */
 function generateSmartRecommendations(weakTopics) {
     if (!weakTopics || weakTopics.length === 0) {
         return ["Great job! Keep practicing to maintain your strengths."];
@@ -318,13 +262,9 @@ function generateSmartRecommendations(weakTopics) {
             }
 
             let pool;
-            if (trend === 'improving') {
-                pool = templates.improving;
-            } else if (trend === 'declining') {
-                pool = templates.declining;
-            } else {
-                pool = templates[severity];
-            }
+            if (trend === 'improving') pool = templates.improving;
+            else if (trend === 'declining') pool = templates.declining;
+            else pool = templates[severity];
 
             let message = randomTemplate(pool).replace('{topic}', topic.topic);
 
@@ -365,6 +305,7 @@ const nextBtn = document.getElementById('nextBtn');
 const getResultBtn = document.getElementById('getResultBtn');
 const submitModal = document.getElementById('submitModal');
 const resultsModal = document.getElementById('resultsModal');
+const weakAreasModal = document.getElementById('weakAreasModal');
 const cancelSubmit = document.getElementById('cancelSubmit');
 const confirmSubmit = document.getElementById('confirmSubmit');
 const answeredCount = document.getElementById('answeredCount');
@@ -379,6 +320,13 @@ const subjectTabs = document.getElementById('subjectTabs');
 const subjectBreakdown = document.getElementById('subjectBreakdown');
 const subjectBreakdownList = document.getElementById('subjectBreakdownList');
 
+// New buttons
+const viewSolutionBtn = document.getElementById('viewSolutionBtn');
+const checkWeakAreasBtn = document.getElementById('checkWeakAreasBtn');
+const closeWeakAreasModal = document.getElementById('closeWeakAreasModal');
+const viewSolutionFromWeakAreas = document.getElementById('viewSolutionFromWeakAreas');
+const backToDashboardFromWeakAreas = document.getElementById('backToDashboardFromWeakAreas');
+
 // Test data
 let testData = null;
 let timeRemaining = 0;
@@ -390,26 +338,38 @@ let currentUser = null;
 let subjectStartIndices = {};
 let subjectCounts = {};
 
+// Tracks which modal opened the solution modal so X can return there
+let solutionOpenedFrom = null; // 'results' | 'weakAreas' | null
+
 // Initialize test page
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('currentYear').textContent = new Date().getFullYear();
 
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
-            window.location.href = 'index.html';
+            window.location.href = '../index.html';
         } else {
             currentUser = user;
             await loadTestData();
         }
     });
 
-    // Event listeners
+    // Core event listeners
     prevBtn.addEventListener('click', showPreviousQuestion);
     nextBtn.addEventListener('click', showNextQuestion);
     getResultBtn.addEventListener('click', showSubmitModal);
     cancelSubmit.addEventListener('click', hideSubmitModal);
     confirmSubmit.addEventListener('click', submitTest);
     backToDashboard.addEventListener('click', goToDashboard);
+
+    // Results modal → other modals
+    viewSolutionBtn.addEventListener('click', () => openSolutionFrom('results'));
+    checkWeakAreasBtn.addEventListener('click', openWeakAreasModal);
+
+    // Weak areas modal buttons
+    closeWeakAreasModal.addEventListener('click', closeWeakAreasAndReturn);
+    viewSolutionFromWeakAreas.addEventListener('click', () => openSolutionFrom('weakAreas'));
+    backToDashboardFromWeakAreas.addEventListener('click', goToDashboard);
 
     document.addEventListener('keydown', handleKeyboardNavigation);
 });
@@ -426,24 +386,18 @@ function fixExcelFraction(value) {
         Sep: "9", Oct: "10", Nov: "11", Dec: "12"
     };
 
-    // Pattern 1: dd-Mmm (e.g., 02-Mar)
     const match1 = value.match(/^(\d{1,2})-([A-Za-z]{3})$/);
     if (match1) {
         const day = parseInt(match1[1], 10);
         const monthAbbr = match1[2];
-        if (months[monthAbbr]) {
-            return `${day}/${months[monthAbbr]}`;
-        }
+        if (months[monthAbbr]) return `${day}/${months[monthAbbr]}`;
     }
 
-    // Pattern 2: Mmm-dd (e.g., Jan-16)
     const match2 = value.match(/^([A-Za-z]{3})-(\d{1,2})$/);
     if (match2) {
         const monthAbbr = match2[1];
         const day = parseInt(match2[2], 10);
-        if (months[monthAbbr]) {
-            return `${months[monthAbbr]}/${day}`;
-        }
+        if (months[monthAbbr]) return `${months[monthAbbr]}/${day}`;
     }
 
     return value;
@@ -463,8 +417,6 @@ async function loadTestData() {
 
     try {
         testData = JSON.parse(savedTest);
-        console.log("Test data loaded:", testData);
-
         initializeTest();
     } catch (error) {
         console.error('Error loading test data:', error);
@@ -483,17 +435,14 @@ function initializeTest() {
         return;
     }
 
-    // Display subject(s) in header based on mode
     if (testData.mode === 'jamb_drill') {
         const subjectsList = testData.subjects.map(s => s.name).join(' + ');
         testSubject.innerHTML = `<i class="fas fa-graduation-cap"></i> JAMB Drill: ${subjectsList}`;
-        // Build subject index mapping
         let idx = 0;
         testData.subjects.forEach(subj => {
             subjectStartIndices[subj.value] = idx;
-            const count = subj.count;
-            subjectCounts[subj.value] = count;
-            idx += count;
+            subjectCounts[subj.value] = subj.count;
+            idx += subj.count;
         });
         renderSubjectTabs();
     } else if (testData.mode === 'waec_neco') {
@@ -531,7 +480,7 @@ function renderSubjectTabs() {
     subjectTabs.style.display = 'block';
     subjectTabs.innerHTML = '';
 
-    testData.subjects.forEach((subj, i) => {
+    testData.subjects.forEach((subj) => {
         const tab = document.createElement('button');
         tab.className = 'subject-tab';
         tab.dataset.subject = subj.value;
@@ -540,28 +489,15 @@ function renderSubjectTabs() {
         subjectTabs.appendChild(tab);
     });
 
-    document.querySelectorAll('.subject-tab').forEach((tab, index) => {
-        tab.style.padding = '10px 20px';
-        tab.style.marginRight = '5px';
-        tab.style.border = 'none';
-        tab.style.borderRadius = '20px';
-        tab.style.background = '#e0e0e0';
-        tab.style.cursor = 'pointer';
-        tab.style.fontSize = '14px';
-        tab.style.fontWeight = '500';
-        tab.style.transition = 'all 0.3s';
-    });
     highlightActiveSubjectTab(testData.questions[0]?.subject);
 }
 
 function highlightActiveSubjectTab(subject) {
     document.querySelectorAll('.subject-tab').forEach(tab => {
         if (tab.dataset.subject === subject) {
-            tab.style.background = 'var(--eggplant)';
-            tab.style.color = 'white';
+            tab.classList.add('active');
         } else {
-            tab.style.background = '#e0e0e0';
-            tab.style.color = '#333';
+            tab.classList.remove('active');
         }
     });
 }
@@ -583,7 +519,6 @@ function loadQuestion(index) {
 
     currentQuestionIndex = index;
     const question = testData.questions[index];
-
     if (!question) return;
 
     questionContent.innerHTML = '';
@@ -592,12 +527,9 @@ function loadQuestion(index) {
     const hasQuestionImage = question.questionImage;
 
     let questionHTML = '';
-
     if (hasQuestionText && hasQuestionImage) {
         questionHTML = `
-            <div class="question-text-content">
-                ${formatTextForDisplay(question.questionText)}
-            </div>
+            <div class="question-text-content">${formatTextForDisplay(question.questionText)}</div>
             <div class="question-image-container">
                 <img src="${question.questionImage}" alt="Question image" class="question-image">
             </div>
@@ -671,9 +603,7 @@ function selectOption(optionLetter) {
     });
 
     const selectedOption = document.querySelector(`.option[data-option="${optionLetter}"]`);
-    if (selectedOption) {
-        selectedOption.classList.add('selected');
-    }
+    if (selectedOption) selectedOption.classList.add('selected');
 
     testData.userAnswers[currentQuestionIndex] = optionLetter;
     updateAnsweredDot(currentQuestionIndex);
@@ -685,18 +615,13 @@ function selectOption(optionLetter) {
 // =============================================
 function generateQuestionDots() {
     if (!testData || !testData.questions) return;
-
     questionDots.innerHTML = '';
 
     for (let i = 0; i < testData.questions.length; i++) {
         const dot = document.createElement('div');
         dot.className = 'dot';
-        if (i === currentQuestionIndex) {
-            dot.classList.add('active');
-        }
-        if (testData.userAnswers && testData.userAnswers[i] !== null) {
-            dot.classList.add('answered');
-        }
+        if (i === currentQuestionIndex) dot.classList.add('active');
+        if (testData.userAnswers && testData.userAnswers[i] !== null) dot.classList.add('answered');
         dot.dataset.index = i;
         dot.addEventListener('click', () => loadQuestion(i));
         questionDots.appendChild(dot);
@@ -743,13 +668,10 @@ function showNextQuestion() {
 // =============================================
 function startTimer() {
     updateTimerDisplay();
-
     timerInterval = setInterval(() => {
         timeRemaining--;
         updateTimerDisplay();
-
         if (timeRemaining <= 300) timerElement.classList.add('warning');
-
         if (timeRemaining <= 0) {
             clearInterval(timerInterval);
             autoSubmitTest();
@@ -781,25 +703,19 @@ function autoSubmitTest() {
 }
 
 // =============================================
-// SAVE TEST RESULT TO FIRESTORE
+// SAVE TEST RESULT TO FIRESTORE (no plan field)
 // =============================================
 async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjectScores = null) {
     try {
-        if (!currentUser) {
-            throw new Error("User not authenticated");
-        }
+        if (!currentUser) throw new Error("User not authenticated");
 
         const subjectName = testData.mode === 'quick'
             ? (testData.subject ? testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1) : 'Unknown Subject')
             : testData.mode === 'jamb_drill' ? 'JAMB Drill' : 'WAEC/NECO Drill';
 
         let userName = currentUser.displayName || '';
-        if (!userName && currentUser.email) {
-            userName = currentUser.email.split('@')[0];
-        }
-        if (!userName) {
-            userName = 'Anonymous';
-        }
+        if (!userName && currentUser.email) userName = currentUser.email.split('@')[0];
+        if (!userName) userName = 'Anonymous';
 
         const questionsData = testData.questions.map((q, index) => ({
             id: q.id || `q-${index}`,
@@ -818,7 +734,6 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
             rawScore: rawScore,
             examType: testData.examType || "Practice",
             mode: testData.mode || 'quick',
-            plan: testData.plan || 'free',
             questions: questionsData,
             score: score,
             subject: testData.subject || "general",
@@ -831,7 +746,6 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
             userName: userName
         };
 
-        // Store subject scores for both JAMB and WAEC/NECO drills
         if (testData.mode === 'jamb_drill') {
             resultData.subjects = testData.subjects;
             resultData.subjectScores = subjectScores;
@@ -839,24 +753,13 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
             resultData.totalPossible = testData.totalQuestions;
         } else if (testData.mode === 'waec_neco' && subjectScores) {
             resultData.subjectScores = subjectScores;
-            // For WAEC/NECO, also store the subject name for easier querying
             resultData.subject = testData.subject;
             resultData.totalRawScore = rawScore;
             resultData.totalPossible = testData.totalQuestions;
         }
 
-        console.log("Saving test result to Firestore:", resultData);
-
         const docRef = await addDoc(collection(db, "test_results"), resultData);
-
-        console.log('✅ Test result saved to Firestore with ID:', docRef.id);
-
         showToast('✅ Test result saved successfully!', 'success');
-
-        if (testData.plan === 'free' && (testData.mode === 'quick' || testData.mode === 'waec_neco')) {
-            await incrementTestCounts();
-        }
-
         return docRef.id;
 
     } catch (error) {
@@ -867,42 +770,14 @@ async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjec
 }
 
 // =============================================
-// INCREMENT TEST COUNTS
-// =============================================
-async function incrementTestCounts() {
-    try {
-        if (!currentUser) {
-            console.error("No user logged in");
-            return;
-        }
-
-        const userRef = doc(db, "users", currentUser.uid);
-
-        console.log("Incrementing test counts for user:", currentUser.uid);
-
-        await updateDoc(userRef, {
-            testsTakenThisWeek: increment(1),
-            totalTestsTaken: increment(1),
-            lastActivity: serverTimestamp()
-        });
-
-        console.log("✅ Test counts incremented successfully");
-
-    } catch (error) {
-        console.error("❌ Error incrementing test counts:", error);
-        showToast('⚠️ Test saved but failed to update test count. Contact support.', 'warning');
-    }
-}
-
-// =============================================
 // TOAST NOTIFICATION
 // =============================================
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
 
-    let bgColor = '#4CAF50';
-    if (type === 'error') bgColor = '#f44336';
-    if (type === 'warning') bgColor = '#ff9800';
+    let bgColor = 'linear-gradient(135deg, #30d158, #4ddc75)';
+    if (type === 'error') bgColor = 'linear-gradient(135deg, #ff453a, #ff375f)';
+    if (type === 'warning') bgColor = 'linear-gradient(135deg, #ff9f0a, #ffd60a)';
 
     toast.style.cssText = `
         position: fixed;
@@ -910,13 +785,15 @@ function showToast(message, type = 'success') {
         right: 20px;
         background: ${bgColor};
         color: white;
-        padding: 15px 20px;
-        border-radius: 8px;
+        padding: 14px 20px;
+        border-radius: 100px;
         z-index: 9999;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
         font-size: 14px;
+        font-weight: 600;
+        font-family: -apple-system, BlinkMacSystemFont, 'Poppins', sans-serif;
         animation: slideIn 0.3s ease-out;
-        max-width: 300px;
+        max-width: 320px;
     `;
 
     let icon = '✅';
@@ -930,7 +807,7 @@ function showToast(message, type = 'success') {
         toast.style.opacity = '0';
         toast.style.transition = 'opacity 0.5s';
         setTimeout(() => document.body.removeChild(toast), 500);
-    }, 5000);
+    }, 4000);
 }
 
 // =============================================
@@ -938,10 +815,7 @@ function showToast(message, type = 'success') {
 // =============================================
 async function submitTest() {
     hideSubmitModal();
-
-    if (timerInterval) {
-        clearInterval(timerInterval);
-    }
+    if (timerInterval) clearInterval(timerInterval);
 
     getResultBtn.classList.add('btn-loading');
     getResultBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculating Score...';
@@ -950,11 +824,7 @@ async function submitTest() {
         let correctAnswers = 0;
         testData.questions.forEach((question, index) => {
             const userAnswer = testData.userAnswers[index];
-            const correctAnswer = question.correctAnswer;
-
-            if (userAnswer === correctAnswer) {
-                correctAnswers++;
-            }
+            if (userAnswer === question.correctAnswer) correctAnswers++;
         });
 
         let finalDisplayScore;
@@ -962,47 +832,36 @@ async function submitTest() {
         let subjectScores = null;
 
         if (testData.mode === 'jamb_drill') {
-            // Calculate per-subject scores for JAMB
             subjectScores = {};
             testData.subjects.forEach(subj => {
                 subjectScores[subj.value] = { correct: 0, total: subj.count };
             });
 
             testData.questions.forEach((question, index) => {
-                const userAnswer = testData.userAnswers[index];
-                const correctAnswer = question.correctAnswer;
-                if (userAnswer === correctAnswer) {
+                if (testData.userAnswers[index] === question.correctAnswer) {
                     const subj = question.subject;
-                    if (subj && subjectScores[subj]) {
-                        subjectScores[subj].correct++;
-                    }
+                    if (subj && subjectScores[subj]) subjectScores[subj].correct++;
                 }
             });
 
-            const totalQuestions = testData.totalQuestions; // 180
-            finalDisplayScore = Math.round((correctAnswers / totalQuestions) * 400);
+            finalDisplayScore = Math.round((correctAnswers / testData.totalQuestions) * 400);
             scoreLabel.textContent = '/400 Score';
         } else if (testData.mode === 'waec_neco') {
-            // Calculate per-subject scores for WAEC/NECO (only one subject)
             subjectScores = {};
-            const subjectValue = testData.subject;
-            subjectScores[subjectValue] = { correct: correctAnswers, total: testData.totalQuestions };
-
+            subjectScores[testData.subject] = { correct: correctAnswers, total: testData.totalQuestions };
             finalDisplayScore = Math.round((correctAnswers / testData.questions.length) * 100);
             scoreLabel.textContent = '% Score';
         } else {
-            // Quick Test: no subjectScores needed
             finalDisplayScore = Math.round((correctAnswers / testData.questions.length) * 100);
             scoreLabel.textContent = '% Score';
         }
 
         // Weakness Detection & Recommendations
         const topicStats = generateWeaknessReport(testData.userAnswers, testData.questions);
-        console.log('🔍 Topic Stats:', topicStats);
 
         if (topicStats.length > 0) {
             saveTopicStats(currentUser.uid, topicStats).catch(err =>
-                console.warn('Topic stats save failed (non‑critical):', err)
+                console.warn('Topic stats save failed (non-critical):', err)
             );
             await updateCumulativeTopicStats(currentUser.uid, topicStats);
 
@@ -1010,8 +869,7 @@ async function submitTest() {
 
             let filteredCumulativeStats = cumulativeStats;
             if (testData.mode === 'quick' || testData.mode === 'waec_neco') {
-                const currentSubject = testData.subject;
-                filteredCumulativeStats = cumulativeStats.filter(stat => stat.subject === currentSubject);
+                filteredCumulativeStats = cumulativeStats.filter(stat => stat.subject === testData.subject);
             } else if (testData.mode === 'jamb_drill') {
                 const subjectValues = testData.subjects.map(s => s.value);
                 filteredCumulativeStats = cumulativeStats.filter(stat => subjectValues.includes(stat.subject));
@@ -1023,18 +881,10 @@ async function submitTest() {
             testData.weakTopics = weakTopics;
             testData.strongTopics = strongTopics;
             testData.recommendations = recommendations;
-
-            console.log('🔍 Weak Topics:', weakTopics);
-            console.log('🔍 Strong Topics:', strongTopics);
-            console.log('🔍 Recommendations:', recommendations);
         } else {
-            console.warn('No topic stats generated – check if questions have subject/topic fields.');
             testData.recommendations = [];
         }
 
-        console.log(`Score calculated: ${finalDisplayScore} (${correctAnswers}/${testData.questions.length})`);
-
-        // Save to Firestore with per-subject scores
         await saveTestResultToFirestore(finalDisplayScore, correctAnswers, correctAnswers, subjectScores);
 
         let message = "";
@@ -1056,78 +906,30 @@ async function submitTest() {
 
     } catch (error) {
         console.error('Error in submitTest:', error);
-
         getResultBtn.classList.remove('btn-loading');
         getResultBtn.innerHTML = '<i class="fas fa-check-circle"></i> Submit Test';
-
         alert(`❌ Error submitting test: ${error.message || 'Please try again.'}`);
     }
 }
 
 // =============================================
-// SHOW RESULTS
+// SHOW RESULTS (populates both modals, shows results modal)
 // =============================================
 function showResults(score, correctAnswers, message, subjectScores = null) {
     getResultBtn.classList.remove('btn-loading');
     getResultBtn.innerHTML = '<i class="fas fa-check-circle"></i> Submit Test';
 
+    // === Populate results (score) modal ===
     finalScore.textContent = score;
     correctCount.textContent = correctAnswers;
     totalQuestionsCount.textContent = testData.questions.length;
-    
+
     if (performanceMessage) {
         performanceMessage.textContent = message;
-        performanceMessage.style.display = 'none';
+        performanceMessage.style.display = 'block';
     }
 
-    const topicBreakdownContainer = document.getElementById('topicBreakdownContainer');
-    const topicBreakdownList = document.getElementById('topicBreakdownList');
-    if (topicBreakdownContainer && topicBreakdownList) {
-        if ((testData.weakTopics && testData.weakTopics.length > 0) || (testData.strongTopics && testData.strongTopics.length > 0)) {
-            let html = '';
-            if (testData.weakTopics && testData.weakTopics.length > 0) {
-                html += '<div style="margin-top: 8px; font-weight: 600; color: #dc3545;">Weak Areas</div>';
-                testData.weakTopics.forEach(topic => {
-                    html += `
-                        <div class="topic-item">
-                            <span class="topic-name">${topic.topic} (${topic.subject})</span>
-                            <span class="topic-stats">${topic.totalCorrect}/${topic.totalAnswered} (${topic.accuracy}%)</span>
-                            <span class="topic-accuracy accuracy-weak">Weak</span>
-                        </div>
-                    `;
-                });
-            }
-            if (testData.strongTopics && testData.strongTopics.length > 0) {
-                html += '<div style="margin-top: 16px; font-weight: 600; color: #28a745;">Strong Areas</div>';
-                testData.strongTopics.forEach(topic => {
-                    html += `
-                        <div class="topic-item">
-                            <span class="topic-name">${topic.topic} (${topic.subject})</span>
-                            <span class="topic-stats">${topic.totalCorrect}/${topic.totalAnswered} (${topic.accuracy}%)</span>
-                            <span class="topic-accuracy accuracy-strong">Strong</span>
-                        </div>
-                    `;
-                });
-            }
-            topicBreakdownList.innerHTML = html;
-            topicBreakdownContainer.style.display = 'block';
-        } else {
-            topicBreakdownContainer.style.display = 'none';
-        }
-    }
-
-    const recommendationsContainer = document.getElementById('recommendationsContainer');
-    const recommendationsList = document.getElementById('recommendationsList');
-    if (recommendationsContainer && recommendationsList && testData.recommendations && testData.recommendations.length > 0) {
-        recommendationsList.innerHTML = testData.recommendations
-            .map(rec => `<li>${rec}</li>`)
-            .join('');
-        recommendationsContainer.style.display = 'block';
-    } else if (recommendationsContainer) {
-        recommendationsContainer.style.display = 'none';
-    }
-
-    // Display subject breakdown for both JAMB and WAEC/NECO drills
+    // Subject breakdown (JAMB / WAEC)
     if (subjectScores && (testData.mode === 'jamb_drill' || testData.mode === 'waec_neco')) {
         subjectBreakdown.style.display = 'block';
         let html = '';
@@ -1136,8 +938,7 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
                 const data = subjectScores[subj.value] || { correct: 0, total: subj.count };
                 html += `<div style="margin: 5px 0;"><strong>${subj.name}:</strong> ${data.correct}/${data.total}</div>`;
             });
-        } else if (testData.mode === 'waec_neco') {
-            // WAEC/NECO: only one subject
+        } else {
             const subjectName = testData.subject.charAt(0).toUpperCase() + testData.subject.slice(1);
             const data = subjectScores[testData.subject] || { correct: correctAnswers, total: testData.totalQuestions };
             html += `<div style="margin: 5px 0;"><strong>${subjectName}:</strong> ${data.correct}/${data.total}</div>`;
@@ -1147,11 +948,14 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
         subjectBreakdown.style.display = 'none';
     }
 
+    // === Populate weak areas modal (hidden until user clicks "Check Weak Areas") ===
+    populateWeakAreasModal();
+
+    // Show results modal
     resultsModal.style.display = 'flex';
-    addSolutionButton();
 
+    // Housekeeping
     sessionStorage.removeItem('currentTest');
-
     try {
         sessionStorage.setItem('previousTest', JSON.stringify({
             ...testData,
@@ -1165,49 +969,97 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
 }
 
 // =============================================
-// SOLUTION BUTTON
+// WEAK AREAS MODAL — populate + open
 // =============================================
-function addSolutionButton() {
-    const premiumNotification = document.getElementById('premiumNotification');
-    if (premiumNotification) {
-        premiumNotification.style.display = 'block';
+function populateWeakAreasModal() {
+    const topicBreakdownContainer = document.getElementById('topicBreakdownContainer');
+    const topicBreakdownList = document.getElementById('topicBreakdownList');
+    const recommendationsContainer = document.getElementById('recommendationsContainer');
+    const recommendationsList = document.getElementById('recommendationsList');
+
+    if (!topicBreakdownContainer || !topicBreakdownList || !recommendationsContainer || !recommendationsList) return;
+
+    const hasWeak = testData.weakTopics && testData.weakTopics.length > 0;
+    const hasStrong = testData.strongTopics && testData.strongTopics.length > 0;
+    const hasRecs = testData.recommendations && testData.recommendations.length > 0;
+
+    if (!hasWeak && !hasStrong) {
+        // No topic-level data — show friendly message inside both panels
+        topicBreakdownList.innerHTML = `<p class="weak-areas-empty">Not enough data yet. Complete more tests to see your topic-level performance.</p>`;
+        recommendationsList.innerHTML = `<li>Keep practicing consistently — your weak areas will be highlighted as you take more tests.</li>`;
+        return;
     }
 
-    const hasAccess = testData && (testData.plan === 'paid' || testData.plan === 'unlimited');
-
-    const modalButtons = document.querySelector('#resultsModal .modal-buttons');
-    if (!modalButtons) return;
-
-    const existingBtn = document.getElementById('solutionBtn');
-    if (existingBtn) existingBtn.remove();
-
-    const solutionBtn = document.createElement('button');
-    solutionBtn.id = 'solutionBtn';
-    solutionBtn.className = 'modal-btn';
-    solutionBtn.innerHTML = '<i class="fas fa-lightbulb"></i> View Detailed Solutions';
-
-    if (hasAccess) {
-        solutionBtn.style.backgroundColor = '#17a2b8';
-        solutionBtn.style.cursor = 'pointer';
-        solutionBtn.addEventListener('click', () => {
-            resultsModal.style.display = 'none';
-            showSolutionsModal(testData.questions, testData.userAnswers);
+    // Topic performance
+    let topicHtml = '';
+    if (hasWeak) {
+        topicHtml += `<div style="margin-bottom: 6px; font-weight: 700; color: var(--accent-red); font-size: 13px;">Weak Areas</div>`;
+        testData.weakTopics.forEach(topic => {
+            topicHtml += `
+                <div class="topic-item">
+                    <span class="topic-name">${topic.topic} (${topic.subject})</span>
+                    <span class="topic-stats">${topic.totalCorrect}/${topic.totalAnswered} • ${topic.accuracy}%</span>
+                    <span class="topic-accuracy accuracy-weak">Weak</span>
+                </div>
+            `;
         });
-    } else {
-        solutionBtn.style.backgroundColor = '#6c757d';
-        solutionBtn.style.opacity = '0.7';
-        solutionBtn.style.cursor = 'not-allowed';
-        solutionBtn.addEventListener('click', () => {
-            alert('Upgrade to Premium or Unlimited to access detailed solutions!');
+    }
+    if (hasStrong) {
+        topicHtml += `<div style="margin: 12px 0 6px; font-weight: 700; color: var(--accent-green); font-size: 13px;">Strong Areas</div>`;
+        testData.strongTopics.forEach(topic => {
+            topicHtml += `
+                <div class="topic-item">
+                    <span class="topic-name">${topic.topic} (${topic.subject})</span>
+                    <span class="topic-stats">${topic.totalCorrect}/${topic.totalAnswered} • ${topic.accuracy}%</span>
+                    <span class="topic-accuracy accuracy-strong">Strong</span>
+                </div>
+            `;
         });
     }
+    topicBreakdownList.innerHTML = topicHtml;
 
-    const backToDashboardBtn = document.getElementById('backToDashboard');
-    if (backToDashboardBtn) {
-        modalButtons.insertBefore(solutionBtn, backToDashboardBtn);
+    // Recommendations
+    if (hasRecs) {
+        recommendationsList.innerHTML = testData.recommendations
+            .map(rec => `<li>${rec}</li>`)
+            .join('');
     } else {
-        modalButtons.appendChild(solutionBtn);
+        recommendationsList.innerHTML = `<li>Great job! Keep practicing to maintain your strengths.</li>`;
     }
+}
+
+function openWeakAreasModal() {
+    resultsModal.style.display = 'none';
+    weakAreasModal.style.display = 'flex';
+}
+
+function closeWeakAreasAndReturn() {
+    weakAreasModal.style.display = 'none';
+    resultsModal.style.display = 'flex';
+}
+
+// =============================================
+// SOLUTION MODAL — open / close
+// =============================================
+function openSolutionFrom(sourceModal) {
+    solutionOpenedFrom = sourceModal;
+
+    if (sourceModal === 'results') resultsModal.style.display = 'none';
+    else if (sourceModal === 'weakAreas') weakAreasModal.style.display = 'none';
+
+    showSolutionsModal(testData.questions, testData.userAnswers);
+}
+
+function closeSolutionAndReturn() {
+    const solutionModal = document.getElementById('solutionModal');
+    if (solutionModal) solutionModal.style.display = 'none';
+
+    if (solutionOpenedFrom === 'results') {
+        resultsModal.style.display = 'flex';
+    } else if (solutionOpenedFrom === 'weakAreas') {
+        weakAreasModal.style.display = 'flex';
+    }
+    solutionOpenedFrom = null;
 }
 
 // =============================================
@@ -1224,16 +1076,16 @@ function showSolutionsModal(questions, userAnswers) {
     solutionsContainer.className = 'solutions-container';
 
     if (testData.mode === 'jamb_drill') {
-        const subjects = testData.subjects;
-        subjects.forEach(subj => {
+        testData.subjects.forEach(subj => {
             const subjectHeader = document.createElement('h3');
-            subjectHeader.style.color = 'var(--eggplant)';
+            subjectHeader.style.color = 'var(--accent-blue-light)';
             subjectHeader.style.margin = '20px 0 10px';
+            subjectHeader.style.fontSize = '16px';
             subjectHeader.innerHTML = `<i class="fas fa-book"></i> ${subj.name}`;
             solutionsContainer.appendChild(subjectHeader);
 
-            const subjectQuestions = questions.filter((q, idx) => q.subject === subj.value);
-            subjectQuestions.forEach((question, idxInSubj) => {
+            const subjectQuestions = questions.filter(q => q.subject === subj.value);
+            subjectQuestions.forEach((question) => {
                 const globalIndex = questions.findIndex(q => q.id === question.id);
                 const userAnswer = userAnswers[globalIndex];
                 const solutionItem = createSolutionItem(question, userAnswer, globalIndex + 1);
@@ -1241,7 +1093,6 @@ function showSolutionsModal(questions, userAnswers) {
             });
         });
     } else {
-        // For Quick Test and WAEC/NECO, just list all questions
         questions.forEach((question, index) => {
             const solutionItem = createSolutionItem(question, userAnswers[index], index + 1);
             solutionsContainer.appendChild(solutionItem);
@@ -1251,16 +1102,15 @@ function showSolutionsModal(questions, userAnswers) {
     modalBody.appendChild(solutionsContainer);
 
     const backButtonContainer = document.createElement('div');
-    backButtonContainer.style.marginTop = '30px';
+    backButtonContainer.style.marginTop = '24px';
     backButtonContainer.style.paddingTop = '20px';
-    backButtonContainer.style.borderTop = '2px solid #eee';
+    backButtonContainer.style.borderTop = '1px solid rgba(140, 155, 200, 0.14)';
     backButtonContainer.style.textAlign = 'center';
 
     const backButton = document.createElement('button');
     backButton.className = 'modal-btn confirm';
     backButton.id = 'backToDashboardFromSolution';
     backButton.innerHTML = '<i class="fas fa-tachometer-alt"></i> Back to Dashboard';
-    backButton.style.backgroundColor = '#28a745';
     backButton.addEventListener('click', goToDashboard);
 
     backButtonContainer.appendChild(backButton);
@@ -1269,12 +1119,10 @@ function showSolutionsModal(questions, userAnswers) {
     modal.style.display = 'flex';
 
     const closeBtn = document.getElementById('closeSolutionModal');
-    if (closeBtn) {
-        closeBtn.onclick = () => modal.style.display = 'none';
-    }
+    if (closeBtn) closeBtn.onclick = closeSolutionAndReturn;
 
     modal.onclick = (e) => {
-        if (e.target === modal) modal.style.display = 'none';
+        if (e.target === modal) closeSolutionAndReturn();
     };
 }
 
@@ -1289,7 +1137,6 @@ function createSolutionItem(question, userAnswer, displayNumber) {
     const hasSolutionImage = question.solutionImage;
 
     let solutionContent = '';
-
     if (hasSolutionText && hasSolutionImage) {
         solutionContent = `
             <div class="solution-text-preserved">${processSolutionText(question.solution)}</div>
@@ -1334,7 +1181,7 @@ function createSolutionItem(question, userAnswer, displayNumber) {
         <h4><i class="fas fa-question-circle"></i> Question ${displayNumber}</h4>
         ${questionContent}
         <div class="solution-options">
-            <p><strong>Your Answer:</strong> <span class="user-answer">${userAnswer || 'Not answered'}</span> 
+            <p><strong>Your Answer:</strong> <span class="user-answer">${userAnswer || 'Not answered'}</span>
             <span class="${isCorrect ? 'option-correct' : 'option-incorrect'}">
                 ${isCorrect ? '✓ Correct' : '✗ Incorrect'}
             </span></p>
@@ -1346,12 +1193,6 @@ function createSolutionItem(question, userAnswer, displayNumber) {
         </div>
     `;
 
-    const separator = document.createElement('hr');
-    separator.style.margin = '20px 0';
-    separator.style.border = 'none';
-    separator.style.borderTop = '1px solid #eee';
-    solutionItem.appendChild(separator);
-
     return solutionItem;
 }
 
@@ -1360,7 +1201,6 @@ function createSolutionItem(question, userAnswer, displayNumber) {
 // =============================================
 function processSolutionText(text) {
     if (!text) return '';
-
     let processedText = text;
     processedText = processedText.replace(/\^(\d+)/g, '<sup>$1</sup>');
     processedText = processedText.replace(/_(\d+)/g, '<sub>$1</sub>');
@@ -1368,20 +1208,17 @@ function processSolutionText(text) {
         return element + '<sub>' + number + '</sub>';
     });
     processedText = processedText.replace(/\n/g, '<br>');
-
     return processedText;
 }
 
 function formatTextForDisplay(text) {
     if (!text) return "";
-
     const encodedText = text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
-
     return encodedText.replace(/\n/g, '<br>');
 }
 
@@ -1396,15 +1233,21 @@ function goToDashboard() {
 // KEYBOARD NAVIGATION
 // =============================================
 function handleKeyboardNavigation(e) {
-    if (submitModal.style.display === 'flex' || resultsModal.style.display === 'flex') {
+    const anyModalOpen =
+        submitModal.style.display === 'flex' ||
+        resultsModal.style.display === 'flex' ||
+        weakAreasModal.style.display === 'flex';
+
+    if (anyModalOpen) {
         if (e.key === 'Escape') {
             hideSubmitModal();
             resultsModal.style.display = 'none';
+            weakAreasModal.style.display = 'none';
         }
         return;
     }
 
-    switch(e.key) {
+    switch (e.key) {
         case '1': case 'A': case 'a': selectOption('A'); break;
         case '2': case 'B': case 'b': selectOption('B'); break;
         case '3': case 'C': case 'c': selectOption('C'); break;
@@ -1412,11 +1255,8 @@ function handleKeyboardNavigation(e) {
         case 'ArrowLeft': if (currentQuestionIndex > 0) loadQuestion(currentQuestionIndex - 1); break;
         case 'ArrowRight': if (currentQuestionIndex < testData.questions.length - 1) loadQuestion(currentQuestionIndex + 1); break;
         case 'Enter':
-            if (currentQuestionIndex < testData.questions.length - 1) {
-                loadQuestion(currentQuestionIndex + 1);
-            } else {
-                showSubmitModal();
-            }
+            if (currentQuestionIndex < testData.questions.length - 1) loadQuestion(currentQuestionIndex + 1);
+            else showSubmitModal();
             break;
         case 'Escape': showSubmitModal(); break;
     }
