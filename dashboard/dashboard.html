@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,22 @@
   <meta name="description" content="Smart Brain CBT platform for secondary school students in Nigeria">
   <title>Smart Brain CBT | DASHBOARD</title>
   <link rel="icon" type="image/png" href="../img/Smart-brain-icon.png">
+
+  <!-- Theme bootstrap: apply saved theme BEFORE styles paint (prevents flash) -->
+  <script>
+    (function() {
+      try {
+        var saved = localStorage.getItem('smartbrain-theme');
+        if (saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    })();
+  </script>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -61,6 +77,16 @@ if ('serviceWorker' in navigator) {
 
 <main class="dashboard">
   <div class="dashboard-container">
+
+    <!-- TOP BAR: Return to Acadex (left) + Dark mode toggle (right) -->
+    <div class="dashboard-topbar">
+      <button id="returnToAcadexBtn" class="return-acadex-btn" style="display: none;" aria-label="Return to Acadex">
+        <i class="fas fa-arrow-left"></i> Return to Acadex
+      </button>
+      <button id="themeToggleBtn" class="theme-toggle-btn" aria-label="Switch to dark mode" title="Switch to dark mode">
+        <i class="fas fa-moon"></i>
+      </button>
+    </div>
 
     <!-- Welcome Section -->
     <section class="welcome-section">
@@ -174,9 +200,6 @@ if ('serviceWorker' in navigator) {
     <footer class="dashboard-footer">
       <div class="footer-content">
         <div class="footer-nav">
-          <button id="returnToAcadexBtn" class="return-acadex-btn" style="display: none;">
-            <i class="fas fa-arrow-left"></i> Return to Acadex
-          </button>
           <a href="../index.html" class="home-btn"><i class="fas fa-home"></i> Home</a>
           <button id="logoutBtn" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
