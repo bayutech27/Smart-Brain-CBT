@@ -16,25 +16,6 @@
     <link rel="stylesheet" href="css/auth.css">
 </head>
 <body>
-    <script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(registrations) {
-    for(let registration of registrations) {
-      registration.unregister();
-      console.log('Service worker unregistered:', registration);
-    }
-  });
-  // Also clear caches
-  if (caches) {
-    caches.keys().then(names => {
-      for (let name of names) {
-        caches.delete(name);
-        console.log('Cache deleted:', name);
-      }
-    });
-  }
-}
-</script>
     <!-- HEADER - MOBILE FIRST -->
     <header class="header">
         <div class="container header-container">
@@ -112,7 +93,7 @@ if ('serviceWorker' in navigator) {
                         <input type="text" id="firstName" class="auth-input" required autofocus placeholder="First Name">
                         <i class="fas fa-user auth-input-icon"></i>
                     </div>
-                    
+
                     <div class="input-group">
                         <input type="text" id="lastName" class="auth-input" required placeholder="Last Name">
                         <i class="fas fa-user auth-input-icon"></i>
@@ -152,7 +133,7 @@ if ('serviceWorker' in navigator) {
 
                 <div class="auth-links">
                     <p>Already have an account? <a href="login.html" class="auth-link">Login Here</a></p>
-                    <p>By signing up, you agree to our <a href="terms.html" class="auth-link">Terms & Conditions</a></p>
+                    <p>By signing up, you agree to our <a href="legals/terms.html" class="auth-link">Terms & Conditions</a></p>
                 </div>
 
                 <div class="auth-footer">
