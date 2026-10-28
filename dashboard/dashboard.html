@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="author" content="Bayo Alabi">
+  <meta name="description" content="Smart Brain CBT platform for secondary school students in Nigeria">
+  <title>Smart Brain CBT | DASHBOARD</title>
+  <link rel="icon" type="image/png" href="../img/Smart-brain-icon.png">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="../css/styles.css?v=2">
+  <link rel="stylesheet" href="../css/dashboard.css?v=2">
+</head>
+<body>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+    for (let registration of registrations) { registration.unregister(); }
+  });
+  if (caches) { caches.keys().then(names => { for (let name of names) caches.delete(name); }); }
+}
+</script>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="container header-container">
+    <div class="brand">
+      <div class="logo"><i class="fas fa-brain"></i></div>
+      <h1 class="brand-name">Smart Brain <span class="cbt">CBT</span></h1>
+    </div>
+    <div class="hamburger" id="hamburger"><span></span><span></span><span></span></div>
+    <nav class="desktop-nav">
+      <ul class="desktop-nav-list">
+        <li class="desktop-nav-item"><a href="../index.html" class="desktop-nav-link"><i class="fas fa-home"></i> Home</a></li>
+        <li class="desktop-nav-item"><a href="../index.html#features" class="desktop-nav-link"><i class="fas fa-star"></i> Features</a></li>
+        <li class="desktop-nav-item"><a href="../index.html#exams" class="desktop-nav-link"><i class="fas fa-book"></i> Exams</a></li>
+        <li class="desktop-nav-item"><a href="../index.html#contact" class="desktop-nav-link"><i class="fas fa-envelope"></i> Contact</a></li>
+        <li class="desktop-nav-item"><a href="dashboard.html" class="desktop-nav-link active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<!-- MOBILE MENU -->
+<nav class="mobile-menu" id="mobileMenu">
+  <div class="container">
+    <ul class="nav-list">
+      <li><a href="../index.html" class="nav-link"><i class="fas fa-home"></i> Home</a></li>
+      <li><a href="../index.html#features" class="nav-link"><i class="fas fa-star"></i> Features</a></li>
+      <li><a href="../index.html#exams" class="nav-link"><i class="fas fa-book"></i> Exams</a></li>
+      <li><a href="../index.html#contact" class="nav-link"><i class="fas fa-envelope"></i> Contact</a></li>
+      <li><a href="dashboard.html" class="nav-link active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main class="dashboard">
+  <div class="dashboard-container">
+
+    <!-- Welcome Section -->
+    <section class="welcome-section">
+      <div class="welcome-content">
+        <div class="user-welcome">
+          <h1>Welcome, <span id="userName"></span>!</h1>
+          <p>Ready to ace your next test? <i class="fas fa-rocket"></i></p>
+        </div>
+        <div class="profile-picture">
+          <img src="https://via.placeholder.com/100/4285F4/FFFFFF?text=SB" alt="Profile" class="profile-img" id="profileImg">
+          <label for="profileUpload" class="profile-upload" title="Upload Photo">
+            <i class="fas fa-camera"></i>
+          </label>
+          <input type="file" id="profileUpload" accept="image/*">
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Cards -->
+    <section class="stats-section">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+          <div class="stat-content">
+            <h3>Completed Tests</h3>
+            <div class="stat-number" id="completedTests">0</div>
+            <div class="stat-label">tests taken</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+          <div class="stat-content">
+            <h3>Average Score</h3>
+            <div class="stat-number" id="averageScore">0<span class="percent">%</span></div>
+            <div class="stat-label" id="performanceMessage">Start practicing!</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Practice Areas -->
+    <section class="practice-section">
+      <div class="section-header">
+        <h2><i class="fas fa-th-large"></i> Practice Areas</h2>
+        <p class="section-subtitle">Choose a practice mode to get started</p>
+      </div>
+      <div class="features-grid">
+        <a href="quick-test.html" class="feature-card">
+          <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+          <h3>Quick Test</h3>
+          <p>20 questions • 20 mins • Any subject</p>
+        </a>
+        <a href="waec-neco.html" class="feature-card">
+          <div class="feature-icon"><i class="fas fa-school"></i></div>
+          <h3>WAEC/NECO Drill</h3>
+          <p>50 questions • 40 mins</p>
+        </a>
+        <a href="jamb.html" class="feature-card">
+          <div class="feature-icon"><i class="fas fa-graduation-cap"></i></div>
+          <h3>JAMB Drill</h3>
+          <p>4 subjects • 120 mins • Scored /400</p>
+        </a>
+        <a href="leaderboard.html" class="feature-card">
+          <div class="feature-icon"><i class="fas fa-ranking-star"></i></div>
+          <h3>Leaderboard</h3>
+          <p>Global rankings & top performers</p>
+        </a>
+        <a href="recent.html" class="feature-card">
+          <div class="feature-icon"><i class="fas fa-history"></i></div>
+          <h3>Recent Tests</h3>
+          <p>Review your last test results</p>
+        </a>
+      </div>
+    </section>
+
+    <!-- ANALYTICS SECTION -->
+    <section class="analytics-section">
+      <div class="section-header">
+        <h2><i class="fas fa-chart-line"></i> Performance Analytics</h2>
+        <p class="section-subtitle">Track your progress and identify strengths</p>
+      </div>
+      <div class="analytics-grid-wrapper">
+        <div class="analytics-grid">
+          <div class="analytics-card">
+            <h3><i class="fas fa-calendar-week"></i> Weekly Trend (Last 7 days)</h3>
+            <div class="chart-container"><canvas id="weeklyTrendChart"></canvas></div>
+          </div>
+          <div class="analytics-card">
+            <h3><i class="fas fa-calendar-alt"></i> Monthly Improvement</h3>
+            <div class="chart-container"><canvas id="monthlyChart"></canvas></div>
+          </div>
+          <div class="analytics-card small">
+            <h3><i class="fas fa-clock"></i> Avg Time / Question</h3>
+            <div class="big-number" id="avgTimeDisplay">—</div>
+          </div>
+          <div class="analytics-card small">
+            <h3><i class="fas fa-trophy"></i> Best Subject</h3>
+            <div id="bestSubjectDisplay" class="big-number">—</div>
+            <div class="small-note" id="bestSubjectScore"></div>
+          </div>
+          <div class="analytics-card small">
+            <h3><i class="fas fa-arrow-up"></i> Most Improved Topic</h3>
+            <div id="improvedTopicDisplay" class="big-number">—</div>
+            <div class="small-note" id="improvedTopicDelta"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dashboard Footer -->
+    <footer class="dashboard-footer">
+      <div class="footer-content">
+        <div class="footer-nav">
+          <a href="../index.html" class="home-btn"><i class="fas fa-home"></i> Home</a>
+          <button id="logoutBtn" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+        <div class="footer-copyright">
+          <p>© 2026 Smart Brain CBT • Empowering students through technology</p>
+        </div>
+      </div>
+    </footer>
+  </div>
+</main>
+
+<script type="module" src="../js/main.js?v=2"></script>
+<script type="module" src="../js/auth.js?v=2"></script>
+<script type="module" src="../js/dashboard.js?v=2"></script>
+<script type="module" src="../js/script.js?v=2"></script>
+</body>
+</html>

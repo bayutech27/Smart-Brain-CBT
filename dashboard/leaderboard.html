@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Brain CBT | Global Leaderboard</title>
+  <link rel="icon" type="image/png" href="../img/Smart-brain-icon.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/styles.css?v=2">
+  <link rel="stylesheet" href="../css/dashboard.css?v=2">
+</head>
+<body>
+
+<header class="header">
+  <div class="container header-container">
+    <div class="brand">
+      <div class="logo"><i class="fas fa-brain"></i></div>
+      <h1 class="brand-name">Smart Brain <span class="cbt">CBT</span></h1>
+    </div>
+    <div class="hamburger" id="hamburger"><span></span><span></span><span></span></div>
+    <nav class="desktop-nav">
+      <ul class="desktop-nav-list">
+        <li class="desktop-nav-item"><a href="../index.html" class="desktop-nav-link"><i class="fas fa-home"></i> Home</a></li>
+        <li class="desktop-nav-item"><a href="../index.html#features" class="desktop-nav-link"><i class="fas fa-star"></i> Features</a></li>
+        <li class="desktop-nav-item"><a href="../index.html#exams" class="desktop-nav-link"><i class="fas fa-book"></i> Exams</a></li>
+        <li class="desktop-nav-item"><a href="../index.html#contact" class="desktop-nav-link"><i class="fas fa-envelope"></i> Contact</a></li>
+        <li class="desktop-nav-item"><a href="dashboard.html" class="desktop-nav-link active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<nav class="mobile-menu" id="mobileMenu">
+  <div class="container">
+    <ul class="nav-list">
+      <li><a href="../index.html" class="nav-link"><i class="fas fa-home"></i> Home</a></li>
+      <li><a href="../index.html#features" class="nav-link"><i class="fas fa-star"></i> Features</a></li>
+      <li><a href="../index.html#exams" class="nav-link"><i class="fas fa-book"></i> Exams</a></li>
+      <li><a href="../index.html#contact" class="nav-link"><i class="fas fa-envelope"></i> Contact</a></li>
+      <li><a href="dashboard.html" class="nav-link active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main class="dashboard">
+  <div class="dashboard-container">
+    <section class="leaderboard-section">
+      <div class="section-header">
+        <h2><i class="fas fa-ranking-star"></i> Global Leaderboard</h2>
+        <p class="section-subtitle">Compete with students worldwide</p>
+      </div>
+      <div class="leaderboard-grid-wrapper">
+        <div class="leaderboard-grid">
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-crown"></i> Top 10 This Week</h3>
+            <div class="leaderboard-list" id="leaderboardTop10"><p class="placeholder">Loading...</p></div>
+          </div>
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-book-open"></i> Top Per Subject</h3>
+            <div class="subject-tabs" id="subjectTabsLeaderboard"></div>
+            <div class="leaderboard-list" id="topPerSubjectList"><p class="placeholder">Select a subject</p></div>
+          </div>
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-chart-line"></i> Most Improved</h3>
+            <div id="mostImprovedStudent" class="big-number">—</div>
+            <div class="small-note" id="mostImprovedDelta"></div>
+          </div>
+          <div class="leaderboard-card">
+            <h3><i class="fas fa-graduation-cap"></i> Highest JAMB Drill</h3>
+            <div id="highestJambScore" class="big-number">—</div>
+            <div class="small-note" id="highestJambScoreName"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="dashboard-footer">
+      <div class="footer-content">
+        <div class="footer-nav">
+          <a href="dashboard.html" class="home-btn"><i class="fas fa-tachometer-alt"></i> Back to Dashboard</a>
+          <button id="logoutBtn" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+        <div class="footer-copyright">
+          <p>© 2026 Smart Brain CBT • Empowering students through technology</p>
+        </div>
+      </div>
+    </footer>
+  </div>
+</main>
+
+<script type="module" src="../js/main.js?v=2"></script>
+<script type="module" src="../js/auth.js?v=2"></script>
+<script type="module" src="../js/dashboard.js?v=2"></script>
+<script type="module" src="../js/script.js?v=2"></script>
+</body>
+</html>
