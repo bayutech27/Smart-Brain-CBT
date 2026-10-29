@@ -13,6 +13,53 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/admin.css">
+
+  <style>
+    /* Minimal page-specific styles for the new pagination buttons */
+    .student-pagination {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .student-pagination .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 100px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .student-pagination .btn:active {
+      transform: scale(0.97);
+    }
+    .student-pagination .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .student-pagination .student-count {
+      font-size: 13px;
+      color: #666;
+      font-weight: 600;
+      padding: 0 8px;
+    }
+    .student-source-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: 6px;
+      background: rgba(106, 17, 203, 0.1);
+      color: #6A11CB;
+      letter-spacing: 0.02em;
+    }
+  </style>
 </head>
 <body>
   <script>
@@ -68,7 +115,7 @@ if ('serviceWorker' in navigator) {
       <h1 class="admin-title"><i class="fas fa-user-shield"></i> Administrator Panel</h1>
       <p class="admin-subtitle">Manage questions, view users, and control the platform.</p>
 
-      <!-- TABS (Leaderboard tab added) -->
+      <!-- TABS -->
       <div class="admin-tabs">
         <button class="tab-btn active" data-tab="question-manager"><i class="fas fa-edit"></i> Add Question</button>
         <button class="tab-btn" data-tab="bulk-upload"><i class="fas fa-file-upload"></i> Bulk Upload</button>
@@ -77,13 +124,12 @@ if ('serviceWorker' in navigator) {
         <button class="tab-btn" data-tab="leaderboard"><i class="fas fa-ranking-star"></i> Leaderboard</button>
       </div>
 
-      <!-- TAB 1: ADD QUESTION (with Topic field) -->
+      <!-- TAB 1: ADD QUESTION -->
       <section id="question-manager" class="tab-content active">
         <h2><i class="fas fa-edit"></i> Add New Practice Question</h2>
         <p class="section-info">All questions added here will be available for students in the general practice bank. <strong>You can use text, images, or both for questions and solutions.</strong></p>
 
         <form id="addQuestionForm" class="admin-form">
-          <!-- Hidden field to store question ID for editing -->
           <input type="hidden" id="questionId" name="questionId" value="">
           
           <div class="form-row">
@@ -118,11 +164,9 @@ if ('serviceWorker' in navigator) {
                 <option value="marketing">Marketing</option>
                 <option value="agric">Agricultural Science</option>
                 <option value="yoruba">Yoruba</option>
-                
               </select>
             </div>
 
-            <!-- Topic field -->
             <div class="form-group">
               <label for="topic"><i class="fas fa-tag"></i> Topic</label>
               <input type="text" id="topic" name="topic" class="form-control" placeholder="e.g., Algebra, Grammar, etc.">
@@ -141,7 +185,6 @@ if ('serviceWorker' in navigator) {
             </div>
           </div>
 
-          <!-- QUESTION CONTENT SECTION -->
           <div class="form-section">
             <h3><i class="fas fa-question-circle"></i> Question Content (Text or Image)</h3>
             <p class="section-hint">Provide either question text, question image, or both. At least one is required.</p>
@@ -200,7 +243,6 @@ if ('serviceWorker' in navigator) {
               </select>
             </div>
 
-            <!-- SOLUTION CONTENT SECTION -->
             <div class="form-group">
               <div class="form-section">
                 <h3><i class="fas fa-lightbulb"></i> Solution Content (Text or Image)</h3>
@@ -363,7 +405,6 @@ IMPORTANT:
         <h2><i class="fas fa-tasks"></i> Manage Question Bank</h2>
         <p class="section-info">Search, edit, or delete questions from the platform bank. <strong>Hover over question previews to see full text with formatting.</strong></p>
 
-        <!-- Bulk Delete by Subject -->
         <div class="bulk-delete-section">
           <h3><i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i> Danger Zone: Delete All Questions by Subject</h3>
           <p class="warning-text">This action is irreversible. All questions under the selected subject will be permanently removed from the database.</p>
@@ -419,31 +460,18 @@ IMPORTANT:
         </div>
       </section>
 
-      <!-- TAB 4: MANAGE STUDENTS -->
+      <!-- TAB 4: MANAGE STUDENTS (refactored) -->
       <section id="student-manager" class="tab-content">
         <h2><i class="fas fa-user-graduate"></i> Registered Students</h2>
-        <p class="section-info">Overview of all students using the platform. Click on a student's name to view/edit their dashboard.</p>
+        <p class="section-info">Overview of all students using the platform. Sorted newest to oldest.</p>
 
-        <div class="stats-overview">
+        <!-- Total Students card only — Free/Premium plan cards removed -->
+        <div class="stats-overview" style="grid-template-columns: 1fr;">
           <div class="stat-card">
             <div class="stat-icon student-icon"><i class="fas fa-users"></i></div>
             <div class="stat-content">
               <h3>Total Students</h3>
               <div class="stat-number" id="totalStudents">0</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon free-icon"><i class="fas fa-user-check"></i></div>
-            <div class="stat-content">
-              <h3>Free Plan</h3>
-              <div class="stat-number" id="freePlanStudents">0</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon premium-icon"><i class="fas fa-crown"></i></div>
-            <div class="stat-content">
-              <h3>Premium Plan</h3>
-              <div class="stat-number" id="premiumPlanStudents">0</div>
             </div>
           </div>
         </div>
@@ -455,27 +483,35 @@ IMPORTANT:
                 <th>Student Name</th>
                 <th>Email</th>
                 <th>Phone</th>
-                <th>Plan</th>
                 <th>Joined Date</th>
                 <th>Tests Taken</th>
                 <th>Status</th>
                 <th>Actions</th>
-                <th>Change Plan</th>
               </tr>
             </thead>
             <tbody id="studentTableBody">
-              <tr><td colspan="9" class="text-center">Loading student data...</td></tr>
+              <tr><td colspan="7" class="text-center">Loading student data...</td></tr>
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination controls -->
+        <div class="student-pagination" id="studentPagination">
+          <button id="loadLessStudentsBtn" class="btn btn-secondary" style="display: none;">
+            <i class="fas fa-chevron-up"></i> Show Less
+          </button>
+          <span class="student-count" id="studentVisibleCount"></span>
+          <button id="loadMoreStudentsBtn" class="btn btn-primary" style="display: none;">
+            <i class="fas fa-chevron-down"></i> Load 10 More
+          </button>
+        </div>
       </section>
 
-      <!-- TAB 5: LEADERBOARD (new) -->
+      <!-- TAB 5: LEADERBOARD -->
       <section id="leaderboard" class="tab-content">
         <h2><i class="fas fa-ranking-star"></i> Global Leaderboard</h2>
         <p class="section-info">Full rankings of all students across various categories.</p>
 
-        <!-- Top 10 This Week (full list) -->
         <div class="leaderboard-category">
           <h3><i class="fas fa-crown"></i> Top 10 This Week (Full List)</h3>
           <div class="leaderboard-list" id="adminLeaderboardTop10">
@@ -483,7 +519,6 @@ IMPORTANT:
           </div>
         </div>
 
-        <!-- Top Per Subject (full lists, grouped by subject) -->
         <div class="leaderboard-category">
           <h3><i class="fas fa-book-open"></i> Top Per Subject (Full Rankings)</h3>
           <div class="subject-tabs" id="adminSubjectTabs"></div>
@@ -492,7 +527,6 @@ IMPORTANT:
           </div>
         </div>
 
-        <!-- Most Improved Students (full list) -->
         <div class="leaderboard-category">
           <h3><i class="fas fa-chart-line"></i> Most Improved Students</h3>
           <div class="leaderboard-list" id="adminMostImprovedList">
@@ -500,7 +534,6 @@ IMPORTANT:
           </div>
         </div>
 
-        <!-- Highest JAMB Drill Scores (full list) -->
         <div class="leaderboard-category">
           <h3><i class="fas fa-graduation-cap"></i> Highest JAMB Drill Scores</h3>
           <div class="leaderboard-list" id="adminJambScoresList">
@@ -512,16 +545,15 @@ IMPORTANT:
     </div>
   </main>
 
-  <!-- Student Dashboard Modal -->
+  <!-- Student Dashboard Modal (read-only) -->
   <div id="studentDashboardModal" class="modal">
     <div class="modal-content" style="max-width: 900px;">
-      <h3><i class="fas fa-user-graduate"></i> Student Dashboard <span id="modalStudentName"></span></h3>
+      <h3><i class="fas fa-user-graduate"></i> Student Details <span id="modalStudentName"></span></h3>
       <div id="modalStudentContent">
         <p>Loading student data...</p>
       </div>
       <div class="modal-actions">
         <button id="closeStudentModal" class="btn btn-secondary"><i class="fas fa-times"></i> Close</button>
-        <button id="saveStudentChanges" class="btn btn-primary" style="display:none;"><i class="fas fa-save"></i> Save Changes</button>
       </div>
     </div>
   </div>
