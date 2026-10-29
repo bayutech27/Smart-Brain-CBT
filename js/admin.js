@@ -63,11 +63,9 @@ const loadMoreBtn = document.getElementById("loadMoreQuestions");
 const questionSearch = document.getElementById("questionSearch");
 const searchBtn = document.getElementById("searchBtn");
 
-// Students
+// Students (plan stat refs REMOVED — freePlanStudents/premiumPlanStudents no longer exist)
 const studentTableBody = document.getElementById("studentTableBody");
 const totalStudents = document.getElementById("totalStudents");
-const freePlanStudents = document.getElementById("freePlanStudents");
-const premiumPlanStudents = document.getElementById("premiumPlanStudents");
 
 // Logout
 const logoutBtn = document.getElementById("logoutBtn");
@@ -110,7 +108,79 @@ let csvData = null;
 let uploadInProgress = false;
 let cancelUpload = false;
 
-// ================= TAB SWITCHING (SAFE) =================
+// ================= STUDENT PAGINATION CONSTANTS =================
+const STUDENTS_INITIAL = 20;
+const STUDENTS_STEP = 10;
+let allStudents = [];
+let visibleStudentsCount = STUDENTS_INITIAL;
+let studentsLoaded = false;
+
+// ================= HELPERS =================
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Robust joined date. Different flows write different fields:
+ *   • Regular signup (auth.js)      → createdAt
+ *   • SSO / Acadex (sso-login.html) → joinedAt
+ *   • Default profile (dashboard.js) → joinedAt
+ *   • auth.js also sets              → subscriptionDate
+ *   • Every login updates            → lastLogin
+ *
+ * The fallback chain guarantees a date for every real user.
+ */
+function getJoinedDate(user) {
+  const candidates = ['createdAt', 'joinedAt', 'subscriptionDate', 'lastLogin', 'lastActivity'];
+  for (const field of candidates) {
+    const raw = user[field];
+    if (!raw) continue;
+    let d = null;
+    if (typeof raw.toDate === 'function') d = raw.toDate();
+    else if (raw.seconds !== undefined) d = new Date(raw.seconds * 1000);
+    else if (raw instanceof Date && !isNaN(raw.getTime())) d = raw;
+    else if (typeof raw === 'number') d = new Date(raw);
+    else if (typeof raw === 'string') {
+      const parsed = new Date(raw);
+      if (!isNaN(parsed.getTime())) d = parsed;
+    }
+    if (d && !isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
+function formatJoinedDate(date) {
+  if (!date) return '—';
+  try {
+    return date.toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
+  } catch (e) {
+    return date.toISOString().split('T')[0];
+  }
+}
+
+async function getAllTestCounts() {
+  try {
+    const snap = await getDocs(collection(db, "test_results"));
+    const counts = {};
+    snap.forEach(docSnap => {
+      const uid = docSnap.data().userId;
+      if (uid) counts[uid] = (counts[uid] || 0) + 1;
+    });
+    return counts;
+  } catch (err) {
+    console.error("Error fetching test counts:", err);
+    return {};
+  }
+}
+
+// ================= TAB SWITCHING =================
 tabButtons.forEach(btn => {
   btn.addEventListener("click", () => {
     tabButtons.forEach(b => b.classList.remove("active"));
@@ -121,11 +191,9 @@ tabButtons.forEach(btn => {
     const targetEl = document.getElementById(targetId);
     if (targetEl) targetEl.classList.add("active");
     
-    // Reload data when switching to student tab
     if (targetId === "student-manager") {
       loadStudents();
     }
-    // Load leaderboard when switching to leaderboard tab (if element exists)
     if (targetId === "leaderboard") {
       loadAdminLeaderboard();
     }
@@ -141,7 +209,6 @@ onAuthStateChanged(auth, (user) => {
 
 // ================= IMAGE UPLOAD FUNCTIONS =================
 
-// Question image handling
 questionImage.addEventListener("change", function(e) {
     const file = e.target.files[0];
     if (file) {
@@ -171,7 +238,6 @@ questionImage.addEventListener("change", function(e) {
     }
 });
 
-// Solution image handling
 solutionImage.addEventListener("change", function(e) {
     const file = e.target.files[0];
     if (file) {
@@ -201,7 +267,6 @@ solutionImage.addEventListener("change", function(e) {
     }
 });
 
-// Remove question image
 window.removeQuestionImage = function() {
     questionImageBase64 = null;
     questionImage.value = '';
@@ -209,7 +274,6 @@ window.removeQuestionImage = function() {
     questionImagePreviewImg.src = '';
 };
 
-// Remove solution image
 window.removeSolutionImage = function() {
     solutionImageBase64 = null;
     solutionImage.value = '';
@@ -217,7 +281,6 @@ window.removeSolutionImage = function() {
     solutionImagePreviewImg.src = '';
 };
 
-// Show validation message
 function showValidationMessage(message, type = "error") {
     validationMessage.textContent = message;
     validationMessage.className = `validation-message ${type}`;
@@ -225,14 +288,12 @@ function showValidationMessage(message, type = "error") {
     validationMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-// Hide validation message
 function hideValidationMessage() {
     validationMessage.classList.remove('show');
 }
 
 // ================= QUESTION MANAGEMENT =================
 
-// Helper to detect if text contains mathematical expressions
 function containsMathExpression(text) {
     if (!text) return false;
     const mathPatterns = [
@@ -255,7 +316,6 @@ function containsMathExpression(text) {
     return mathPatterns.some(pattern => pattern.test(text));
 }
 
-// Helper to preserve mathematical formatting in text
 function preserveMathFormatting(text) {
     if (!text) return text;
     const lines = text.split('\n');
@@ -278,7 +338,6 @@ function preserveMathFormatting(text) {
     return result.join('\n');
 }
 
-// Format text for HTML display
 function formatTextForDisplay(text) {
     if (!text) return "";
     const encodedText = text
@@ -303,13 +362,11 @@ function formatTextForDisplay(text) {
     return formatted;
 }
 
-// Format text for tooltip display
 function formatTextForTooltip(text) {
     if (!text) return "";
     return text.replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
-// Get question type for display
 function getQuestionType(questionData) {
     const hasText = questionData.questionText && questionData.questionText.trim() !== '';
     const hasImage = questionData.questionImage;
@@ -319,7 +376,6 @@ function getQuestionType(questionData) {
     return "none";
 }
 
-// Get solution type for display
 function getSolutionType(questionData) {
     const hasText = questionData.solution && questionData.solution.trim() !== '';
     const hasImage = questionData.solutionImage;
@@ -329,7 +385,6 @@ function getSolutionType(questionData) {
     return "none";
 }
 
-// Reset form to add new question mode
 function resetQuestionForm() {
     addQuestionForm.reset();
     questionIdField.value = "";
@@ -343,7 +398,6 @@ function resetQuestionForm() {
     removeSolutionImage();
 }
 
-// Load question data into form for editing
 async function loadQuestionForEdit(questionId) {
     try {
         const questionRef = doc(db, "questions", questionId);
@@ -392,7 +446,6 @@ async function loadQuestionForEdit(questionId) {
     }
 }
 
-// Validate form before submission
 function validateQuestionForm() {
     const questionTextValue = preserveMathFormatting(questionText.value);
     if (!questionTextValue && !questionImageBase64) {
@@ -411,7 +464,6 @@ function validateQuestionForm() {
     return true;
 }
 
-// Save or update question
 addQuestionForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!validateQuestionForm()) return;
@@ -1018,46 +1070,7 @@ loadMoreBtn.addEventListener("click", () => {
 });
 loadQuestions();
 
-// ================= STUDENT MANAGEMENT =================
-
-window.updateUserPlan = async (userId, newPlan) => {
-    const planDisplay = newPlan === 'free' ? 'Free' : (newPlan === 'paid' ? 'Paid' : 'Unlimited');
-    if (!confirm(`Are you sure you want to set this student's plan to ${planDisplay}?`)) return;
-    try {
-        const updateData = { plan: newPlan, lastUpdated: serverTimestamp() };
-        if (newPlan === 'paid') {
-            updateData.subscriptionDate = serverTimestamp();
-            updateData.subscriptionStatus = 'paid_tier';
-        } else if (newPlan === 'free') {
-            updateData.subscriptionDate = null;
-            updateData.subscriptionStatus = 'free_tier';
-        } else if (newPlan === 'unlimited') {
-            updateData.subscriptionStatus = 'unlimited';
-        }
-        await updateDoc(doc(db, "users", userId), updateData);
-        const feedbackDiv = document.createElement("div");
-        feedbackDiv.className = `feedback-message success`;
-        feedbackDiv.textContent = `✅ Student plan updated to ${planDisplay} successfully`;
-        feedbackDiv.style.position = "fixed";
-        feedbackDiv.style.top = "20px";
-        feedbackDiv.style.right = "20px";
-        feedbackDiv.style.zIndex = "1000";
-        document.body.appendChild(feedbackDiv);
-        setTimeout(() => feedbackDiv.remove(), 3000);
-        loadStudents();
-    } catch (error) {
-        console.error(`Error updating student plan:`, error);
-        const feedbackDiv = document.createElement("div");
-        feedbackDiv.className = `feedback-message error`;
-        feedbackDiv.textContent = `❌ Failed to update student plan`;
-        feedbackDiv.style.position = "fixed";
-        feedbackDiv.style.top = "20px";
-        feedbackDiv.style.right = "20px";
-        feedbackDiv.style.zIndex = "1000";
-        document.body.appendChild(feedbackDiv);
-        setTimeout(() => feedbackDiv.remove(), 3000);
-    }
-};
+// ================= STUDENT MANAGEMENT (REFACTORED) =================
 
 async function getTestCount(userId) {
     try {
@@ -1070,122 +1083,154 @@ async function getTestCount(userId) {
     }
 }
 
-// UPDATED: Load students with phone fallback and sorted by registration (newest first)
+/**
+ * Loads ALL users (students + Acadex-origin SSO users, excluding admins),
+ * sorts by joined date DESC, caches everything, renders the first
+ * STUDENTS_INITIAL (20). Pagination then works on the cached array.
+ */
 async function loadStudents() {
+    const tbody = studentTableBody;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center">Loading student data...</td></tr>`;
+
     try {
-        const snap = await getDocs(collection(db, "users"));
-        let freeCount = 0;
-        let premiumCount = 0;
-        let unlimitedCount = 0;
+        // 1. Fetch all users
+        const userSnap = await getDocs(collection(db, "users"));
 
-        studentTableBody.innerHTML = "";
-
-        if (snap.empty) {
-            studentTableBody.innerHTML = `<tr><td colspan="9" class="text-center">No students found</td></tr>`;
-            totalStudents.textContent = "0";
-            freePlanStudents.textContent = "0";
-            premiumPlanStudents.textContent = "0";
-            return;
-        }
-
+        // 2. Build student list (skip admins — everyone else is a student,
+        //    including Acadex-origin users who have acadexUid but may not
+        //    have role === 'student' explicitly set)
         const students = [];
-        snap.forEach(docSnap => {
+        userSnap.forEach(docSnap => {
             const u = docSnap.data();
-            students.push({ id: docSnap.id, ...u });
+            if (u.role === 'admin') return;
+            students.push({
+                id: docSnap.id,
+                ...u,
+                _joinedDate: getJoinedDate(u)
+            });
         });
 
-        // Sort by createdAt (newest first), missing dates last
+        // 3. Sort newest → oldest, tie-break by name
         students.sort((a, b) => {
-            const getTime = (user) => {
-                if (!user.createdAt) return -Infinity; // missing dates go to end
-                const date = user.createdAt.toDate ? user.createdAt.toDate() : new Date(user.createdAt);
-                return date.getTime();
-            };
-            return getTime(b) - getTime(a); // descending
+            const ta = a._joinedDate ? a._joinedDate.getTime() : 0;
+            const tb = b._joinedDate ? b._joinedDate.getTime() : 0;
+            if (tb !== ta) return tb - ta;
+            return (a.fullName || '').localeCompare(b.fullName || '');
         });
 
-        const studentPromises = students.map(s => getTestCount(s.id));
-        const testCounts = await Promise.all(studentPromises);
+        // 4. Fetch test counts (one batch query for all test_results)
+        const counts = await getAllTestCounts();
+        students.forEach(s => { s._testCount = counts[s.id] || 0; });
 
-        students.forEach((u, index) => {
-            const userId = u.id;
-            const testCount = testCounts[index];
-            
-            if (u.plan === "free") freeCount++;
-            else if (u.plan === "paid") premiumCount++;
-            else if (u.plan === "unlimited") {
-                unlimitedCount++;
-                premiumCount++;
-            }
-            
-            let joinedDate = "-";
-            if (u.createdAt) {
-                const date = u.createdAt.toDate ? u.createdAt.toDate() : new Date(u.createdAt);
-                joinedDate = date.toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' });
-            }
-            
-            const status = u.status || "active";
-            const statusClass = status === "active" ? "status-active" : "status-inactive";
-            
-            const plan = u.plan || "free";
-            let planClass = "plan-free";
-            if (plan === "paid") planClass = "plan-paid";
-            else if (plan === "unlimited") planClass = "plan-unlimited";
-            const planDisplay = plan === "paid" ? "Premium" : (plan === "unlimited" ? "Unlimited" : "Free");
-            
-            // Phone number fallback
-            const phone = u.phoneNumber || u.phone || u.mobile || "-";
-            
-            studentTableBody.innerHTML += `
-                <tr>
-                    <td><span class="student-name-clickable" data-userid="${userId}" style="cursor:pointer; color:#6A11CB; text-decoration:underline;">${u.fullName || u.displayName || "-"}</span></td>
-                    <td>${u.email || "-"}</td>
-                    <td>${phone}</td>
-                    <td><span class="plan-badge ${planClass}">${planDisplay}</span></td>
-                    <td>${joinedDate}</td>
-                    <td>${testCount}</td>
-                    <td class="${statusClass}">${status.charAt(0).toUpperCase() + status.slice(1)}</td>
-                    <td>
-                        <div class="action-buttons">
-                            ${status === "active" ? 
-                                `<button class="action-btn deactivate-btn" onclick="toggleStudentStatus('${userId}', 'inactive')" title="Deactivate">
-                                    <i class="fas fa-user-slash"></i>
-                                </button>` : 
-                                `<button class="action-btn activate-btn" onclick="toggleStudentStatus('${userId}', 'active')" title="Activate">
-                                    <i class="fas fa-user-check"></i>
-                                </button>`
-                            }
-                            <button class="action-btn delete-btn" onclick="deleteStudent('${userId}')" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </td>
-                    <td>
-                        <div class="plan-buttons" style="display: flex; gap: 5px; flex-wrap: wrap;">
-                            <button class="plan-btn free-btn" onclick="updateUserPlan('${userId}', 'free')" ${plan === 'free' ? 'disabled' : ''}>
-                                <i class="fas fa-user"></i> Free
-                            </button>
-                            <button class="plan-btn paid-btn" onclick="updateUserPlan('${userId}', 'paid')" ${plan === 'paid' ? 'disabled' : ''}>
-                                <i class="fas fa-crown"></i> Paid
-                            </button>
-                            <button class="plan-btn unlimited-btn" onclick="updateUserPlan('${userId}', 'unlimited')" ${plan === 'unlimited' ? 'disabled' : ''}>
-                                <i class="fas fa-infinity"></i> Unlimited
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        });
+        allStudents = students;
+        visibleStudentsCount = STUDENTS_INITIAL;
+        studentsLoaded = true;
 
-        totalStudents.textContent = snap.size;
-        freePlanStudents.textContent = freeCount;
-        premiumPlanStudents.textContent = premiumCount; 
+        totalStudents.textContent = students.length;
 
+        renderStudentsTable();
     } catch (error) {
         console.error("Error loading students:", error);
-        studentTableBody.innerHTML = `<tr><td colspan="9" class="text-center">Error loading students</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center">Error loading students. Please refresh.</td></tr>`;
     }
 }
+
+function renderStudentsTable() {
+    const tbody = studentTableBody;
+    const visible = allStudents.slice(0, visibleStudentsCount);
+
+    if (allStudents.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center">No students registered yet.</td></tr>`;
+        updateStudentPagination();
+        return;
+    }
+
+    tbody.innerHTML = visible.map(u => {
+        const userId = u.id;
+        const joined = formatJoinedDate(u._joinedDate);
+        const status = u.status || "active";
+        const statusClass = status === "active" ? "status-active" : "status-inactive";
+        const isAcadex = !!u.acadexUid;
+        const displayName = u.fullName || u.displayName || u.email || "—";
+        const phone = u.phoneNumber || u.phone || u.mobile || "—";
+        const testCount = u._testCount || 0;
+
+        return `
+            <tr>
+                <td>
+                    <span class="student-name-clickable" data-userid="${userId}" style="cursor:pointer; color:#6A11CB; text-decoration:underline;">
+                        ${escapeHtml(displayName)}
+                    </span>
+                    ${isAcadex ? '<span class="student-source-badge">Acadex</span>' : ''}
+                </td>
+                <td>${escapeHtml(u.email || "—")}</td>
+                <td>${escapeHtml(phone)}</td>
+                <td>${joined}</td>
+                <td>${testCount}</td>
+                <td class="${statusClass}">${status.charAt(0).toUpperCase() + status.slice(1)}</td>
+                <td>
+                    <div class="action-buttons">
+                        ${status === "active"
+                            ? `<button class="action-btn deactivate-btn" onclick="toggleStudentStatus('${userId}', 'inactive')" title="Deactivate"><i class="fas fa-user-slash"></i></button>`
+                            : `<button class="action-btn activate-btn" onclick="toggleStudentStatus('${userId}', 'active')" title="Activate"><i class="fas fa-user-check"></i></button>`
+                        }
+                        <button class="action-btn delete-btn" onclick="deleteStudent('${userId}')" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    updateStudentPagination();
+}
+
+function updateStudentPagination() {
+    const moreBtn = document.getElementById('loadMoreStudentsBtn');
+    const lessBtn = document.getElementById('loadLessStudentsBtn');
+    const countEl = document.getElementById('studentVisibleCount');
+
+    if (!moreBtn || !lessBtn || !countEl) return;
+
+    const total = allStudents.length;
+    const visible = Math.min(visibleStudentsCount, total);
+
+    // Show "Load More" if there are more students beyond visible
+    if (visible < total) {
+        moreBtn.style.display = 'inline-flex';
+    } else {
+        moreBtn.style.display = 'none';
+    }
+
+    // Show "Show Less" if visible count > initial (20)
+    if (visibleStudentsCount > STUDENTS_INITIAL) {
+        lessBtn.style.display = 'inline-flex';
+    } else {
+        lessBtn.style.display = 'none';
+    }
+
+    // Counter text
+    if (total === 0) {
+        countEl.textContent = '';
+    } else {
+        countEl.textContent = `Showing ${visible} of ${total}`;
+    }
+}
+
+function loadMoreStudents() {
+    visibleStudentsCount = Math.min(visibleStudentsCount + STUDENTS_STEP, allStudents.length);
+    renderStudentsTable();
+}
+
+function loadLessStudents() {
+    visibleStudentsCount = Math.max(visibleStudentsCount - STUDENTS_STEP, STUDENTS_INITIAL);
+    renderStudentsTable();
+}
+
+// Attach pagination listeners
+document.getElementById('loadMoreStudentsBtn')?.addEventListener('click', loadMoreStudents);
+document.getElementById('loadLessStudentsBtn')?.addEventListener('click', loadLessStudents);
+
+// ================= TOGGLE / DELETE STUDENT =================
 
 window.toggleStudentStatus = async (userId, newStatus) => {
     const action = newStatus === "active" ? "activate" : "deactivate";
@@ -1228,7 +1273,7 @@ window.deleteStudent = async (userId) => {
     }
 };
 
-// ================= STUDENT MODAL =================
+// ================= STUDENT MODAL (plan selector removed) =================
 
 studentTableBody.addEventListener('click', async (e) => {
     const target = e.target.closest('.student-name-clickable');
@@ -1272,27 +1317,23 @@ async function loadStudentDashboard(userId) {
             </div>
         `).join('') : '<p>No tests taken yet.</p>';
 
+        const joinedDate = formatJoinedDate(getJoinedDate(userData));
+        const isAcadex = !!userData.acadexUid;
+
+        // Plan field REMOVED. Status dropdown still available for activate/deactivate.
         modalStudentContent.innerHTML = `
             <div class="student-info-grid">
                 <div class="info-item">
                     <span class="info-label">Full Name</span>
-                    <span class="info-value editable-field" contenteditable="true" data-field="fullName">${userData.fullName || ''}</span>
+                    <span class="info-value editable-field" contenteditable="true" data-field="fullName">${escapeHtml(userData.fullName || '')}</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Email</span>
-                    <span class="info-value">${userData.email || ''}</span>
+                    <span class="info-value">${escapeHtml(userData.email || '')}</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Phone</span>
-                    <span class="info-value editable-field" contenteditable="true" data-field="phoneNumber">${userData.phoneNumber || userData.phone || userData.mobile || ''}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Plan</span>
-                    <select id="modalPlanSelect">
-                        <option value="free" ${userData.plan === 'free' ? 'selected' : ''}>Free</option>
-                        <option value="paid" ${userData.plan === 'paid' ? 'selected' : ''}>Paid</option>
-                        <option value="unlimited" ${userData.plan === 'unlimited' ? 'selected' : ''}>Unlimited</option>
-                    </select>
+                    <span class="info-value editable-field" contenteditable="true" data-field="phoneNumber">${escapeHtml(userData.phoneNumber || userData.phone || userData.mobile || '')}</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Status</span>
@@ -1303,7 +1344,11 @@ async function loadStudentDashboard(userId) {
                 </div>
                 <div class="info-item">
                     <span class="info-label">Joined</span>
-                    <span class="info-value">${userData.createdAt?.toDate ? userData.createdAt.toDate().toLocaleDateString() : 'N/A'}</span>
+                    <span class="info-value">${joinedDate}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Source</span>
+                    <span class="info-value">${isAcadex ? 'Acadex (SSO)' : 'Direct Signup'}</span>
                 </div>
             </div>
             <h4>Recent Tests</h4>
@@ -1326,7 +1371,7 @@ saveStudentChanges.addEventListener('click', async () => {
             const field = el.dataset.field;
             updates[field] = el.textContent.trim();
         });
-        updates.plan = document.getElementById('modalPlanSelect').value;
+        // Plan update REMOVED. Only name, phone, and status are saved.
         updates.status = document.getElementById('modalStatusSelect').value;
         updates.lastUpdated = serverTimestamp();
 
@@ -1343,7 +1388,7 @@ saveStudentChanges.addEventListener('click', async () => {
 closeStudentModal.addEventListener('click', () => studentModal.classList.remove('active'));
 studentModal.addEventListener('click', (e) => { if (e.target === studentModal) studentModal.classList.remove('active'); });
 
-// ================= GLOBAL LEADERBOARD FUNCTIONS =================
+// ================= GLOBAL LEADERBOARD FUNCTIONS (UNCHANGED) =================
 
 async function getAllUsers() {
     const snapshot = await getDocs(collection(db, "users"));
@@ -1475,7 +1520,6 @@ async function getFullJambScores() {
 }
 
 async function loadAdminLeaderboard() {
-    // Guard against missing leaderboard elements
     const top10Container = document.getElementById('adminLeaderboardTop10');
     const subjectTabs = document.getElementById('adminSubjectTabs');
     const topList = document.getElementById('adminTopPerSubjectList');
@@ -1560,7 +1604,7 @@ async function loadAdminLeaderboard() {
     }
 }
 
-// ================= BULK DELETE BY SUBJECT =================
+// ================= BULK DELETE BY SUBJECT (UNCHANGED) =================
 const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
 const bulkDeleteSubject = document.getElementById('bulkDeleteSubject');
 const bulkDeleteProgress = document.getElementById('bulkDeleteProgress');
@@ -1620,7 +1664,7 @@ if (bulkDeleteBtn) {
     });
 }
 
-// ================= LOGOUT =================
+// ================= LOGOUT (UNCHANGED) =================
 logoutBtn.addEventListener("click", async () => {
     await signOut(auth);
     window.location.href = "index.html";
