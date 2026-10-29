@@ -99,8 +99,6 @@ function applyTheme(theme) {
 }
 
 function initTheme() {
-    // Initial theme was already applied by the inline script in <head>.
-    // Sync the toggle button's icon to match.
     const current = getCurrentTheme();
     applyTheme(current);
 
@@ -240,12 +238,18 @@ function escapeHtml(str) {
 }
 
 // ========== ACADEX UI ==========
-// If the student came from Acadex (has acadexUid), show "Return to Acadex"
-// and hide the Logout button. Otherwise show Logout, hide Return.
+// Behaviour for Acadex-origin students:
+//   • "Return to Acadex"  → signs out of SmartBrain FIRST, then navigates
+//                           to Acadex. This ends the session cleanly so the
+//                           student is never silently auto-logged-in if they
+//                           later revisit the SmartBrain domain.
+//   • "Logout"            → visible for everyone (Acadex or not). Ends the
+//                           session and returns to SmartBrain index.
+// Both paths produce a clean signed-out state — just different destinations.
 function setupAcadexUI() {
     const isFromAcadex = !!(currentUserData && currentUserData.acadexUid);
 
-    // Return to Acadex button
+    // Return to Acadex button — only for Acadex-origin students
     if (returnToAcadexBtn) {
         if (isFromAcadex) {
             let returnUrl =
@@ -260,15 +264,48 @@ function setupAcadexUI() {
             try { localStorage.setItem('acadexReturnUrl', returnUrl); } catch (e) { /* non-fatal */ }
 
             returnToAcadexBtn.style.display = 'inline-flex';
-            returnToAcadexBtn.onclick = () => { window.location.href = returnUrl; };
+
+            // Return to Acadex = sign out + navigate.
+            // We disable the button while this runs so students can't
+            // double-click and race the auth handler.
+            returnToAcadexBtn.onclick = async () => {
+                if (returnToAcadexBtn.disabled) return;
+                const originalHTML = returnToAcadexBtn.innerHTML;
+                returnToAcadexBtn.disabled = true;
+                returnToAcadexBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Returning…';
+
+                try {
+                    // Stop any Firestore listeners before signOut
+                    if (unsubscribeStats) {
+                        try { unsubscribeStats(); } catch (e) { /* non-fatal */ }
+                        unsubscribeStats = null;
+                    }
+
+                    // End the Firebase Auth session — this is the key step
+                    // that prevents the "auto-login on next visit" confusion.
+                    await signOut(auth);
+                } catch (err) {
+                    // Even if signOut fails, still navigate — the student's
+                    // primary intent is to return to Acadex. Auth state will
+                    // be handled on the next visit.
+                    console.warn('Sign-out before returning to Acadex failed:', err);
+                } finally {
+                    // Restore label (in case navigation is blocked by the
+                    // browser, user can retry)
+                    returnToAcadexBtn.disabled = false;
+                    returnToAcadexBtn.innerHTML = originalHTML;
+
+                    window.location.href = returnUrl;
+                }
+            };
         } else {
             returnToAcadexBtn.style.display = 'none';
         }
     }
 
-    // Logout button — hide for Acadex-origin students
+    // Logout button — always visible for all users (Acadex or not).
     if (logoutBtn) {
-        logoutBtn.style.display = isFromAcadex ? 'none' : 'inline-flex';
+        logoutBtn.style.display = 'inline-flex';
     }
 }
 
@@ -287,7 +324,7 @@ async function loadUserData(userId) {
 
         loadUserProfile(currentUserData);
 
-        // NEW: Return to Acadex + hide Logout for Acadex users
+        // Setup Return to Acadex (conditionally) + Logout (always)
         setupAcadexUI();
 
         if (document.getElementById('completedTests') || document.getElementById('averageScore')) {
