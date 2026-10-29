@@ -15,13 +15,12 @@
   <link rel="stylesheet" href="css/admin.css">
 
   <style>
-    /* Minimal page-specific styles for the new pagination buttons */
     .student-pagination {
       display: flex;
       gap: 12px;
       justify-content: center;
       align-items: center;
-      margin-top: 16px;
+      margin-top: 18px;
       flex-wrap: wrap;
     }
     .student-pagination .btn {
@@ -35,9 +34,7 @@
       cursor: pointer;
       transition: all 0.2s ease;
     }
-    .student-pagination .btn:active {
-      transform: scale(0.97);
-    }
+    .student-pagination .btn:active { transform: scale(0.97); }
     .student-pagination .btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -47,6 +44,8 @@
       color: #666;
       font-weight: 600;
       padding: 0 8px;
+      min-width: 130px;
+      text-align: center;
     }
     .student-source-badge {
       display: inline-block;
@@ -70,7 +69,6 @@ if ('serviceWorker' in navigator) {
       console.log('Service worker unregistered:', registration);
     }
   });
-  // Also clear caches
   if (caches) {
     caches.keys().then(names => {
       for (let name of names) {
@@ -81,15 +79,12 @@ if ('serviceWorker' in navigator) {
   }
 }
 </script>
-  <!-- HEADER -->
   <header class="header">
     <div class="container header-container">
       <div class="brand">
         <div class="logo"><i class="fas fa-brain"></i></div>
         <h1 class="brand-name">Smart Brain <span class="cbt">CBT</span></h1>
       </div>
-
-      <!-- DESKTOP NAVIGATION -->
       <nav class="desktop-nav">
         <ul class="desktop-nav-list">
           <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
@@ -99,7 +94,6 @@ if ('serviceWorker' in navigator) {
     </div>
   </header>
 
-  <!-- MOBILE MENU -->
   <nav class="mobile-menu" id="mobileMenu">
     <div class="container">
       <ul class="nav-list">
@@ -109,13 +103,11 @@ if ('serviceWorker' in navigator) {
     </div>
   </nav>
 
-  <!-- MAIN ADMIN CONTENT -->
   <main class="admin-main">
     <div class="admin-container">
       <h1 class="admin-title"><i class="fas fa-user-shield"></i> Administrator Panel</h1>
       <p class="admin-subtitle">Manage questions, view users, and control the platform.</p>
 
-      <!-- TABS -->
       <div class="admin-tabs">
         <button class="tab-btn active" data-tab="question-manager"><i class="fas fa-edit"></i> Add Question</button>
         <button class="tab-btn" data-tab="bulk-upload"><i class="fas fa-file-upload"></i> Bulk Upload</button>
@@ -124,7 +116,7 @@ if ('serviceWorker' in navigator) {
         <button class="tab-btn" data-tab="leaderboard"><i class="fas fa-ranking-star"></i> Leaderboard</button>
       </div>
 
-      <!-- TAB 1: ADD QUESTION -->
+      <!-- TAB 1 -->
       <section id="question-manager" class="tab-content active">
         <h2><i class="fas fa-edit"></i> Add New Practice Question</h2>
         <p class="section-info">All questions added here will be available for students in the general practice bank. <strong>You can use text, images, or both for questions and solutions.</strong></p>
@@ -282,7 +274,7 @@ if ('serviceWorker' in navigator) {
         <div id="validationMessage" class="validation-message"></div>
       </section>
 
-      <!-- TAB 2: BULK UPLOAD -->
+      <!-- TAB 2 -->
       <section id="bulk-upload" class="tab-content">
         <h2><i class="fas fa-file-upload"></i> Bulk Question Upload</h2>
         <p class="section-info">Upload multiple questions at once using CSV or text format. Each question will be saved as a separate document in Firestore. <strong>Mathematical formatting is preserved in both methods.</strong></p>
@@ -293,7 +285,6 @@ if ('serviceWorker' in navigator) {
             <button type="button" id="textMethodBtn" class="method-btn"><i class="fas fa-font"></i> Text Format</button>
           </div>
 
-          <!-- CSV Upload Section -->
           <div id="csvUploadSection" class="upload-section active">
             <div class="upload-area">
               <div class="upload-box" id="csvDropZone">
@@ -346,7 +337,6 @@ if ('serviceWorker' in navigator) {
             </div>
           </div>
 
-          <!-- Text Format Section -->
           <div id="textUploadSection" class="upload-section">
             <div class="text-format-guide">
               <h4><i class="fas fa-info-circle"></i> Text Format Guide</h4>
@@ -400,7 +390,7 @@ IMPORTANT:
         </div>
       </section>
 
-      <!-- TAB 3: VIEW/EDIT QUESTIONS -->
+      <!-- TAB 3 -->
       <section id="question-list" class="tab-content">
         <h2><i class="fas fa-tasks"></i> Manage Question Bank</h2>
         <p class="section-info">Search, edit, or delete questions from the platform bank. <strong>Hover over question previews to see full text with formatting.</strong></p>
@@ -463,9 +453,9 @@ IMPORTANT:
       <!-- TAB 4: MANAGE STUDENTS (refactored) -->
       <section id="student-manager" class="tab-content">
         <h2><i class="fas fa-user-graduate"></i> Registered Students</h2>
-        <p class="section-info">Overview of all students using the platform. Sorted newest to oldest.</p>
+        <p class="section-info">Overview of all students using the platform. Sorted newest to oldest. Includes students from Acadex and direct sign-ups.</p>
 
-        <!-- Total Students card only — Free/Premium plan cards removed -->
+        <!-- Total Students only — plan cards removed -->
         <div class="stats-overview" style="grid-template-columns: 1fr;">
           <div class="stat-card">
             <div class="stat-icon student-icon"><i class="fas fa-users"></i></div>
@@ -495,7 +485,6 @@ IMPORTANT:
           </table>
         </div>
 
-        <!-- Pagination controls -->
         <div class="student-pagination" id="studentPagination">
           <button id="loadLessStudentsBtn" class="btn btn-secondary" style="display: none;">
             <i class="fas fa-chevron-up"></i> Show Less
@@ -507,7 +496,7 @@ IMPORTANT:
         </div>
       </section>
 
-      <!-- TAB 5: LEADERBOARD -->
+      <!-- TAB 5 -->
       <section id="leaderboard" class="tab-content">
         <h2><i class="fas fa-ranking-star"></i> Global Leaderboard</h2>
         <p class="section-info">Full rankings of all students across various categories.</p>
@@ -545,7 +534,7 @@ IMPORTANT:
     </div>
   </main>
 
-  <!-- Student Dashboard Modal (read-only) -->
+  <!-- Student Modal (editable name/phone/status, no plan) -->
   <div id="studentDashboardModal" class="modal">
     <div class="modal-content" style="max-width: 900px;">
       <h3><i class="fas fa-user-graduate"></i> Student Details <span id="modalStudentName"></span></h3>
@@ -554,16 +543,15 @@ IMPORTANT:
       </div>
       <div class="modal-actions">
         <button id="closeStudentModal" class="btn btn-secondary"><i class="fas fa-times"></i> Close</button>
+        <button id="saveStudentChanges" class="btn btn-primary" style="display:none;"><i class="fas fa-save"></i> Save Changes</button>
       </div>
     </div>
   </div>
 
-  <!-- FOOTER -->
   <footer class="dashboard-footer">
     <button id="logoutBtn" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
   </footer>
 
-  <!-- SCRIPTS -->
   <script src="js/script.js"></script>
   <script type="module" src="js/auth.js"></script>
   <script type="module" src="js/admin.js"></script>
