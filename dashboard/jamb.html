@@ -5,12 +5,146 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Smart Brain CBT | JAMB Drill</title>
   <link rel="icon" type="image/png" href="../img/Smart-brain-icon.png">
+
+  <!-- Pre-paint loader styles -->
+  <style id="acadex-loader-styles">
+    .acadex-fs-loader {
+      position: fixed; inset: 0;
+      background: rgba(242, 242, 247, 0.94);
+      -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      z-index: 9998;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: clamp(0.75rem, 3vw, 1.15rem);
+      padding: clamp(1rem, 4vw, 2rem);
+      box-sizing: border-box;
+      opacity: 0; visibility: hidden; pointer-events: none;
+      transition: opacity 0.35s ease, visibility 0.35s ease;
+      -webkit-tap-highlight-color: transparent;
+      will-change: opacity;
+    }
+    .acadex-fs-loader.active {
+      opacity: 1; visibility: visible; pointer-events: auto;
+    }
+    .acadex-ov-loader {
+      position: fixed; inset: 0;
+      background: rgba(255, 255, 255, 0.55);
+      -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+      z-index: 9997;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: clamp(0.6rem, 2.5vw, 0.85rem);
+      padding: clamp(1rem, 4vw, 2rem);
+      box-sizing: border-box;
+      opacity: 0; visibility: hidden; pointer-events: none;
+      transition: opacity 0.28s ease, visibility 0.28s ease;
+      -webkit-tap-highlight-color: transparent;
+      will-change: opacity;
+    }
+    .acadex-ov-loader.active {
+      opacity: 1; visibility: visible; pointer-events: auto;
+    }
+    .acadex-spinner svg { display: block; }
+    .acadex-spinner-track { stroke: rgba(0, 122, 255, 0.16); }
+    .acadex-spinner-ring {
+      stroke: #007AFF;
+      animation: acadex-spin 0.9s linear infinite;
+      transform-origin: center;
+    }
+    @keyframes acadex-spin { to { transform: rotate(360deg); } }
+    .acadex-loader-label {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+                   'SF Pro Display', 'Inter', 'Helvetica Neue', Arial, sans-serif;
+      font-size: clamp(0.82rem, 2.4vw, 0.95rem);
+      font-weight: 600;
+      color: rgba(60, 60, 67, 0.6);
+      letter-spacing: -0.005em;
+      text-align: center;
+      padding: 0 clamp(0.75rem, 3vw, 1.5rem);
+      max-width: 90vw;
+      line-height: 1.4;
+    }
+    .acadex-ov-loader .acadex-loader-label {
+      font-size: clamp(0.76rem, 2.2vw, 0.88rem);
+    }
+    .acadex-loader-failsafe {
+      text-align: center;
+      padding: clamp(1rem, 4vw, 2rem);
+      max-width: min(92vw, 420px);
+      box-sizing: border-box;
+    }
+    .acadex-loader-failsafe .icon {
+      font-size: clamp(1.8rem, 6vw, 2.5rem);
+      margin-bottom: clamp(0.5rem, 2vw, 0.75rem);
+      line-height: 1;
+    }
+    .acadex-loader-failsafe p {
+      color: rgba(60, 60, 67, 0.65);
+      font-size: clamp(0.82rem, 2.4vw, 0.95rem);
+      line-height: 1.6;
+      margin: 0;
+    }
+    .acadex-loader-failsafe strong { color: #000; }
+    .acadex-loader-failsafe a {
+      color: #007AFF; text-decoration: underline; font-weight: 600;
+    }
+    .acadex-spinner-lg svg {
+      width: clamp(44px, 12vw, 60px); height: clamp(44px, 12vw, 60px);
+    }
+    .acadex-spinner-md svg {
+      width: clamp(36px, 10vw, 44px); height: clamp(36px, 10vw, 44px);
+    }
+    .acadex-spinner-sm svg {
+      width: clamp(26px, 8vw, 32px); height: clamp(26px, 8vw, 32px);
+    }
+    @media (max-height: 500px) and (orientation: landscape) {
+      .acadex-fs-loader, .acadex-ov-loader { gap: 0.55rem; padding: 0.5rem; }
+      .acadex-spinner-lg svg {
+        width: clamp(34px, 9vh, 48px); height: clamp(34px, 9vh, 48px);
+      }
+      .acadex-spinner-md svg {
+        width: clamp(28px, 7.5vh, 38px); height: clamp(28px, 7.5vh, 38px);
+      }
+      .acadex-loader-label { font-size: 0.78rem; }
+    }
+  </style>
+
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/styles.css?v=2">
   <link rel="stylesheet" href="../css/dashboard.css?v=2">
 </head>
 <body>
+
+<!-- PRE-PAINT BOOT LOADER -->
+<div id="acadexFullscreenLoaderGlobal" class="acadex-fs-loader active"
+     role="status" aria-live="polite" aria-label="Loading">
+  <div class="acadex-spinner acadex-spinner-lg">
+    <svg viewBox="0 0 40 40">
+      <circle class="acadex-spinner-track" cx="20" cy="20" r="16"
+              fill="none" stroke-width="3"/>
+      <circle class="acadex-spinner-ring" cx="20" cy="20" r="16"
+              fill="none" stroke-width="3" stroke-linecap="round"
+              pathLength="100" stroke-dasharray="25 100"/>
+    </svg>
+  </div>
+  <div class="acadex-loader-label">Loading…</div>
+</div>
+<script>
+  window.__acadexPrebootTimer = setTimeout(function () {
+    var el = document.getElementById('acadexFullscreenLoaderGlobal');
+    if (el && el.classList.contains('active') &&
+        !el.querySelector('.acadex-loader-failsafe')) {
+      el.innerHTML =
+        '<div class="acadex-loader-failsafe">' +
+          '<div class="icon">📶</div>' +
+          '<p><strong>Network is taking too long.</strong><br>' +
+          'Please check your connection and try again.<br>' +
+          '<a href="javascript:location.reload()">Tap to refresh</a></p>' +
+        '</div>';
+    }
+  }, 120000);
+</script>
 
 <header class="header">
   <div class="container header-container">
@@ -90,9 +224,21 @@
   </div>
 </main>
 
+<!-- Loading utilities FIRST -->
+<script type="module" src="../js/loading.js?v=2"></script>
+
 <script type="module" src="../js/main.js?v=2"></script>
 <script type="module" src="../js/auth.js?v=2"></script>
 <script type="module" src="../js/dashboard.js?v=2"></script>
 <script type="module" src="../js/script.js?v=2"></script>
+
+<!-- Fallback ready signal -->
+<script type="module">
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      window.dispatchEvent(new Event('acadex:ready'));
+    }, 3000);
+  });
+</script>
 </body>
 </html>
