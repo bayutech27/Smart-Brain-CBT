@@ -7,7 +7,11 @@
   <title>Smart Brain CBT | TEST</title>
   <link rel="icon" type="image/png" href="../img/Smart-brain-icon.png">
 
-  <!-- Pre-paint loader styles -->
+  <!-- ============================================================
+       Pre-paint loader styles (inline so the spinner paints before
+       any external CSS/JS loads). loading.js will detect this id and
+       skip re-injection.
+       ============================================================ -->
   <style id="acadex-loader-styles">
     .acadex-fs-loader {
       position: fixed; inset: 0;
@@ -24,9 +28,7 @@
       -webkit-tap-highlight-color: transparent;
       will-change: opacity;
     }
-    .acadex-fs-loader.active {
-      opacity: 1; visibility: visible; pointer-events: auto;
-    }
+    .acadex-fs-loader.active { opacity: 1; visibility: visible; pointer-events: auto; }
     .acadex-ov-loader {
       position: fixed; inset: 0;
       background: rgba(255, 255, 255, 0.55);
@@ -42,9 +44,7 @@
       -webkit-tap-highlight-color: transparent;
       will-change: opacity;
     }
-    .acadex-ov-loader.active {
-      opacity: 1; visibility: visible; pointer-events: auto;
-    }
+    .acadex-ov-loader.active { opacity: 1; visibility: visible; pointer-events: auto; }
     .acadex-spinner svg { display: block; }
     .acadex-spinner-track { stroke: rgba(0, 122, 255, 0.16); }
     .acadex-spinner-ring {
@@ -65,9 +65,6 @@
       max-width: 90vw;
       line-height: 1.4;
     }
-    .acadex-ov-loader .acadex-loader-label {
-      font-size: clamp(0.76rem, 2.2vw, 0.88rem);
-    }
     .acadex-loader-failsafe {
       text-align: center;
       padding: clamp(1rem, 4vw, 2rem);
@@ -86,27 +83,230 @@
       margin: 0;
     }
     .acadex-loader-failsafe strong { color: #000; }
-    .acadex-loader-failsafe a {
-      color: #007AFF; text-decoration: underline; font-weight: 600;
-    }
-    .acadex-spinner-lg svg {
-      width: clamp(44px, 12vw, 60px); height: clamp(44px, 12vw, 60px);
-    }
-    .acadex-spinner-md svg {
-      width: clamp(36px, 10vw, 44px); height: clamp(36px, 10vw, 44px);
-    }
-    .acadex-spinner-sm svg {
-      width: clamp(26px, 8vw, 32px); height: clamp(26px, 8vw, 32px);
-    }
+    .acadex-loader-failsafe a { color: #007AFF; text-decoration: underline; font-weight: 600; }
+    .acadex-spinner-lg svg { width: clamp(44px, 12vw, 60px); height: clamp(44px, 12vw, 60px); }
+    .acadex-spinner-md svg { width: clamp(36px, 10vw, 44px); height: clamp(36px, 10vw, 44px); }
+    .acadex-spinner-sm svg { width: clamp(26px, 8vw, 32px); height: clamp(26px, 8vw, 32px); }
     @media (max-height: 500px) and (orientation: landscape) {
       .acadex-fs-loader, .acadex-ov-loader { gap: 0.55rem; padding: 0.5rem; }
-      .acadex-spinner-lg svg {
-        width: clamp(34px, 9vh, 48px); height: clamp(34px, 9vh, 48px);
-      }
-      .acadex-spinner-md svg {
-        width: clamp(28px, 7.5vh, 38px); height: clamp(28px, 7.5vh, 38px);
-      }
+      .acadex-spinner-lg svg { width: clamp(34px, 9vh, 48px); height: clamp(34px, 9vh, 48px); }
       .acadex-loader-label { font-size: 0.78rem; }
+    }
+  </style>
+
+  <!-- ============================================================
+       Anti-cheat + viewport-fit styles
+       (self-contained; hardcoded dark palette so the modals look the
+       same on light and dark SmartBrain themes — like Acadex).
+       ============================================================ -->
+  <style id="smartbrain-anticheat-styles">
+    /* ---- Viewport-fit: whole test page fits one screen ---- */
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+    body > .header { flex-shrink: 0; }
+
+    main.test-page {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    main.test-page .test-container {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+      padding-top: max(0.5rem, env(safe-area-inset-top));
+      padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+      padding-left: max(0.5rem, env(safe-area-inset-left));
+      padding-right: max(0.5rem, env(safe-area-inset-right));
+      box-sizing: border-box;
+    }
+    main.test-page .test-footer { flex-shrink: 0; }
+
+    /* Question card fills vertically; progress / dots / nav stay fixed */
+    main.test-page .question-card {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    main.test-page .question-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,0,0,0.2) transparent;
+    }
+    main.test-page .question-body::-webkit-scrollbar { width: 6px; }
+    main.test-page .question-body::-webkit-scrollbar-thumb {
+      background: rgba(0,0,0,0.18);
+      border-radius: 3px;
+    }
+    main.test-page .progress-container,
+    main.test-page .question-dots,
+    main.test-page .test-navigation { flex-shrink: 0; }
+
+    /* ---- Fullscreen entry prompt ---- */
+    .fullscreen-prompt {
+      position: fixed;
+      inset: 0;
+      background: #16132b;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(16px, 4vw, 24px);
+      padding-top: max(clamp(16px, 4vw, 24px), env(safe-area-inset-top));
+      padding-bottom: max(clamp(16px, 4vw, 24px), env(safe-area-inset-bottom));
+      z-index: 2147483646;
+      text-align: center;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Poppins', sans-serif;
+    }
+    .fullscreen-prompt.is-visible { display: flex; }
+
+    .fullscreen-prompt-card {
+      max-width: 440px;
+      width: 100%;
+      background: #1f1c3f;
+      color: #f8f8ff;
+      border-radius: clamp(14px, 3vw, 22px);
+      padding: clamp(22px, 5vw, 30px) clamp(18px, 4vw, 24px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+      box-sizing: border-box;
+      margin: auto;
+      flex: 0 0 auto;
+    }
+    .fullscreen-prompt-card h2 {
+      color: #f8f8ff;
+      font-size: clamp(1.1rem, 4.5vw, 1.35rem);
+      font-weight: 700;
+      margin: 0 0 clamp(10px, 2.5vw, 14px);
+      letter-spacing: -0.02em;
+      line-height: 1.3;
+    }
+    .fullscreen-prompt-card h2 i { color: #0a84ff; margin-right: 8px; }
+    .fullscreen-prompt-card p {
+      color: rgba(235, 235, 245, 0.72);
+      font-size: clamp(0.88rem, 3.5vw, 0.95rem);
+      line-height: 1.55;
+      margin: 0 0 clamp(16px, 4vw, 22px);
+    }
+
+    .fs-enter-btn,
+    .fs-reenter-btn {
+      margin-top: clamp(14px, 3vw, 18px);
+      padding: clamp(10px, 2.5vw, 12px) clamp(20px, 4.5vw, 26px);
+      background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      font-family: inherit;
+      font-size: clamp(0.88rem, 3.4vw, 0.98rem);
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 6px 20px rgba(10, 132, 255, 0.35);
+      transition: filter 0.15s ease, transform 0.15s ease;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+    .fs-enter-btn:hover,
+    .fs-reenter-btn:hover { filter: brightness(1.10); transform: translateY(-1px); }
+
+    /* ---- Anti-cheat modals (fullscreen exit + generic warnings) ---- */
+    .anti-cheat-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(12px, 4vw, 20px);
+      padding-top: max(clamp(12px, 4vw, 20px), env(safe-area-inset-top));
+      padding-bottom: max(clamp(12px, 4vw, 20px), env(safe-area-inset-bottom));
+      background: rgba(10, 8, 20, 0.92);
+      z-index: 2147483647;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      box-sizing: border-box;
+      text-align: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Poppins', sans-serif;
+    }
+    .anti-cheat-modal.is-visible { display: flex; }
+
+    .anti-cheat-modal > .anti-cheat-card {
+      width: 100%;
+      max-width: 440px;
+      background: #1f1c3f;
+      color: #f8f8ff;
+      border-radius: clamp(14px, 3vw, 22px);
+      padding: clamp(18px, 4.5vw, 26px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+      box-sizing: border-box;
+      max-height: calc(100vh - 32px);
+      max-height: calc(100dvh - 32px);
+      overflow-y: auto;
+      margin: auto;
+      flex: 0 0 auto;
+    }
+    .anti-cheat-modal h3 {
+      margin: 0 0 clamp(8px, 2vw, 12px) 0;
+      color: #ff8078;
+      font-size: clamp(1rem, 4vw, 1.2rem);
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    .anti-cheat-modal h3 i { margin-right: 6px; }
+    .anti-cheat-modal p,
+    .anti-cheat-modal .antiCheatMessage {
+      margin: 0;
+      font-size: clamp(0.9rem, 3.6vw, 1rem);
+      line-height: 1.55;
+      color: #f8f8ff;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+      display: block;
+    }
+    .anti-cheat-modal .antiCheatCountdown {
+      display: block;
+      margin-top: clamp(10px, 2.5vw, 14px);
+      font-size: clamp(0.82rem, 3.2vw, 0.92rem);
+      color: #ffb84d;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    /* Landscape-phone squeeze */
+    @media (max-height: 500px) {
+      .fullscreen-prompt-card,
+      .anti-cheat-modal > .anti-cheat-card {
+        padding: clamp(14px, 3vh, 20px);
+      }
+      .fullscreen-prompt-card h2 { font-size: 1rem; margin-bottom: 8px; }
+      .fullscreen-prompt-card p { font-size: 0.82rem; margin-bottom: 12px; }
+      .anti-cheat-modal h3 { font-size: 0.95rem; }
+      .anti-cheat-modal p,
+      .anti-cheat-modal .antiCheatMessage { font-size: 0.85rem; }
+      .fs-enter-btn, .fs-reenter-btn {
+        padding: 8px 18px; font-size: 0.82rem; margin-top: 10px;
+      }
     }
   </style>
 
@@ -120,7 +320,10 @@
 </head>
 <body>
 
-<!-- PRE-PAINT BOOT LOADER -->
+<!-- ============================================================
+     PRE-PAINT BOOT LOADER — paints before any module script runs.
+     loading.js adopts this element (same id) on import.
+     ============================================================ -->
 <div id="acadexFullscreenLoaderGlobal" class="acadex-fs-loader active"
      role="status" aria-live="polite" aria-label="Loading">
   <div class="acadex-spinner acadex-spinner-lg">
@@ -150,7 +353,9 @@
   }, 120000);
 </script>
 
-<!-- HEADER - MOBILE FIRST -->
+<!-- ============================================================
+     HEADER — unchanged
+     ============================================================ -->
 <header class="header">
   <div class="container header-container">
     <div class="brand">
@@ -209,15 +414,18 @@
 
     <!-- Question Card -->
     <div class="question-card">
-      <div class="question-content" id="questionContent">
-        <div class="question-text" id="questionText">Loading question...</div>
-      </div>
+      <!-- Scrollable content wrapper (added for viewport-fit) -->
+      <div class="question-body">
+        <div class="question-content" id="questionContent">
+          <div class="question-text" id="questionText">Loading question...</div>
+        </div>
 
-      <div class="options-container" id="optionsContainer">
-        <div class="option" data-option="A"><div class="option-letter">A</div><div class="option-text">Loading option A...</div></div>
-        <div class="option" data-option="B"><div class="option-letter">B</div><div class="option-text">Loading option B...</div></div>
-        <div class="option" data-option="C"><div class="option-letter">C</div><div class="option-text">Loading option C...</div></div>
-        <div class="option" data-option="D"><div class="option-letter">D</div><div class="option-text">Loading option D...</div></div>
+        <div class="options-container" id="optionsContainer">
+          <div class="option" data-option="A"><div class="option-letter">A</div><div class="option-text">Loading option A...</div></div>
+          <div class="option" data-option="B"><div class="option-letter">B</div><div class="option-text">Loading option B...</div></div>
+          <div class="option" data-option="C"><div class="option-letter">C</div><div class="option-text">Loading option C...</div></div>
+          <div class="option" data-option="D"><div class="option-letter">D</div><div class="option-text">Loading option D...</div></div>
+        </div>
       </div>
 
       <div class="progress-container">
@@ -244,7 +452,9 @@
   </footer>
 </main>
 
-<!-- Submit Confirmation Modal -->
+<!-- ============================================================
+     MODALS — unchanged
+     ============================================================ -->
 <div class="modal" id="submitModal">
   <div class="modal-content">
     <h3><i class="fas fa-exclamation-triangle"></i> Submit Test?</h3>
@@ -256,7 +466,6 @@
   </div>
 </div>
 
-<!-- RESULTS MODAL (Score + Comment + 3 buttons) -->
 <div class="modal" id="resultsModal">
   <div class="modal-content">
     <div class="score-display">
@@ -289,7 +498,6 @@
   </div>
 </div>
 
-<!-- WEAK AREAS MODAL (Topic Performance + Recommendations + 2 buttons) -->
 <div class="modal" id="weakAreasModal">
   <div class="modal-content">
     <div class="modal-header">
@@ -318,7 +526,6 @@
   </div>
 </div>
 
-<!-- Solution Modal -->
 <div id="solutionModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -329,6 +536,47 @@
   </div>
 </div>
 
+<!-- ============================================================
+     FULLSCREEN ENTRY PROMPT — blocks test start until clicked
+     ============================================================ -->
+<div id="fullscreenPrompt" class="fullscreen-prompt is-visible" role="dialog" aria-modal="true">
+  <div class="fullscreen-prompt-card">
+    <h2><i class="fas fa-expand"></i> Fullscreen Required</h2>
+    <p>This test runs in fullscreen mode. Browser tabs, navigation, and exiting fullscreen will be monitored and will end the test.</p>
+    <button id="enterFullscreenBtn" class="fs-enter-btn">
+      <i class="fas fa-expand"></i> Enter Fullscreen &amp; Begin
+    </button>
+  </div>
+</div>
+
+<!-- ============================================================
+     FULLSCREEN EXIT WARNING — shown if user leaves fullscreen
+     ============================================================ -->
+<div id="fullscreenWarningModal" class="anti-cheat-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="anti-cheat-card">
+    <h3><i class="fas fa-expand"></i> Fullscreen Mode Exited!</h3>
+    <p>Please re-enter fullscreen to continue the test securely.</p>
+    <button id="reenterFullscreenBtn" class="fs-reenter-btn">
+      <i class="fas fa-expand"></i> Re-enter Fullscreen
+    </button>
+  </div>
+</div>
+
+<!-- ============================================================
+     ANTI-CHEAT WARNING — used for tab/blur/copy/paste/devtools
+     ============================================================ -->
+<div id="antiCheatWarningModal" class="anti-cheat-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="anti-cheat-card">
+    <h3><i class="fas fa-exclamation-triangle"></i> Warning</h3>
+    <div class="antiCheatMessage" role="alert"></div>
+    <div class="antiCheatCountdown" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCRIPTS
+     ============================================================ -->
+
 <!-- Loading utilities FIRST (module) — test.js depends on it -->
 <script type="module" src="../js/loading.js?v=2"></script>
 
@@ -336,7 +584,18 @@
 <script src="../js/script.js"></script>
 <script type="module" src="../js/test.js"></script>
 
-<!-- ANTI-COPY SCRIPT (unchanged) -->
+<!-- Fallback ready signal (safety net) -->
+<script type="module">
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      window.dispatchEvent(new Event('acadex:ready'));
+    }, 3000);
+  });
+</script>
+
+<!-- ============================================================
+     ANTI-COPY SCRIPT (preserved verbatim from prior version)
+     ============================================================ -->
 <script>
   (function() {
     document.addEventListener('contextmenu', function(e) { e.preventDefault(); return false; });
@@ -360,13 +619,84 @@
   })();
 </script>
 
-<!-- Fallback ready signal -->
-<script type="module">
-  window.addEventListener('load', function () {
-    setTimeout(function () {
-      window.dispatchEvent(new Event('acadex:ready'));
-    }, 3000);
-  });
+<!-- ============================================================
+     FULLSCREEN GATING — blocks test start until fullscreen entered.
+     Fires `acadex:start-test` which test.js listens for.
+     ============================================================ -->
+<script>
+  (function () {
+    const prompt = document.getElementById('fullscreenPrompt');
+    const enterBtn = document.getElementById('enterFullscreenBtn');
+    const reenterBtn = document.getElementById('reenterFullscreenBtn');
+    const fullscreenWarning = document.getElementById('fullscreenWarningModal');
+
+    function requestFullscreen() {
+      const el = document.documentElement;
+      try {
+        if (el.requestFullscreen) return el.requestFullscreen();
+        if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+        if (el.mozRequestFullScreen) return el.mozRequestFullScreen();
+        if (el.msRequestFullscreen) return el.msRequestFullscreen();
+      } catch (e) {
+        console.warn('Fullscreen request failed:', e);
+      }
+      return Promise.resolve();
+    }
+
+    function isFullscreen() {
+      return !!(document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullScreenElement ||
+                document.msFullscreenElement);
+    }
+
+    function triggerTestStart() {
+      window.__acadexTestStartTriggered = true;
+      document.dispatchEvent(new CustomEvent('acadex:start-test'));
+    }
+
+    if (enterBtn) {
+      enterBtn.addEventListener('click', function () {
+        Promise.resolve(requestFullscreen())
+          .catch(function (e) { console.warn('Fullscreen rejected:', e); })
+          .finally(function () {
+            if (prompt) prompt.classList.remove('is-visible');
+            triggerTestStart();
+          });
+      });
+    }
+
+    if (reenterBtn) {
+      reenterBtn.addEventListener('click', function () {
+        Promise.resolve(requestFullscreen())
+          .catch(function (e) { console.warn('Fullscreen rejected:', e); })
+          .finally(function () {
+            if (fullscreenWarning) {
+              fullscreenWarning.classList.remove('is-visible');
+              fullscreenWarning.setAttribute('aria-hidden', 'true');
+            }
+          });
+      });
+    }
+
+    // Already in fullscreen on load — skip prompt
+    if (isFullscreen()) {
+      if (prompt) prompt.classList.remove('is-visible');
+      triggerTestStart();
+    }
+  })();
+</script>
+
+<!-- Service-worker cleanup (preserved from prior version) -->
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+    for (let registration of registrations) { registration.unregister(); }
+  }).catch(function(err) { console.log('SW unregistration failed:', err); });
+  if (window.caches) {
+    caches.keys().then(function(names) { names.forEach(function(n) { caches.delete(n); }); });
+  }
+}
 </script>
 
 </body>
