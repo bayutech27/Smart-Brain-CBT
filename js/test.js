@@ -15,6 +15,9 @@ import {
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
+// Perfect-timed loader dismissal — see js/loading.js
+import { markPageReady } from "./loading.js";
+
 // =============================================
 // WEAKNESS DETECTION & RECOMMENDATION ENGINE
 // =============================================
@@ -347,6 +350,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
+            // No session — hide loader instantly (minDisplayMs: 0) so the
+            // user doesn't see a spinner lingering during the redirect.
+            markPageReady({ minDisplayMs: 0 });
             window.location.href = '../index.html';
         } else {
             currentUser = user;
@@ -410,6 +416,8 @@ async function loadTestData() {
     const savedTest = sessionStorage.getItem('currentTest');
 
     if (!savedTest) {
+        // Nothing to load — hide the loader instantly, then alert + redirect.
+        markPageReady({ minDisplayMs: 0 });
         alert('No test found. Please start a test from the dashboard.');
         window.location.href = 'dashboard.html';
         return;
@@ -420,6 +428,7 @@ async function loadTestData() {
         initializeTest();
     } catch (error) {
         console.error('Error loading test data:', error);
+        markPageReady({ minDisplayMs: 0 });
         alert('Error loading test. Please try again.');
         window.location.href = 'dashboard.html';
     }
@@ -430,6 +439,7 @@ async function loadTestData() {
 // =============================================
 function initializeTest() {
     if (!testData || !testData.questions) {
+        markPageReady({ minDisplayMs: 0 });
         alert('Error: Test questions not loaded properly.');
         window.location.href = 'dashboard.html';
         return;
@@ -473,6 +483,11 @@ function initializeTest() {
     loadQuestion(0);
     updateProgressBar();
     updateAnsweredCount();
+
+    // Perfect-timed loader dismissal — the test page is fully usable by now
+    // (question 1 is rendered, timer started, dots generated). Hides the
+    // fullscreen + overlay loaders with a 500 ms minimum-display window.
+    markPageReady();
 }
 
 function renderSubjectTabs() {
