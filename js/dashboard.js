@@ -7,6 +7,9 @@ import {
 
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
+// Perfect-timed loader dismissal — see js/loading.js
+import { markPageReady } from "./loading.js";
+
 // ========== CONSTANTS ==========
 const WAEC_NECO_QUESTIONS = 50;
 const WAEC_NECO_TIME = 40 * 60;
@@ -346,6 +349,11 @@ async function loadUserData(userId) {
         }
     } catch (error) {
         console.error('Error loading user data:', error);
+    } finally {
+        // Perfect-timed loader dismissal — profile, stats listener,
+        // dropdowns, and JAMB subject checkboxes are all set up by now,
+        // which is the earliest point where the dashboard is usable.
+        markPageReady();
     }
 }
 
@@ -1458,6 +1466,10 @@ function initDashboard() {
 
     onAuthStateChanged(auth, (user) => {
         if (!user) {
+            // No session — hide the loader instantly (minDisplayMs: 0) so the
+            // user sees the redirect happen cleanly rather than the spinner
+            // lingering while the browser navigates away.
+            markPageReady({ minDisplayMs: 0 });
             window.location.href = '../index.html';
         } else {
             loadUserData(user.uid);
