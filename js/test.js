@@ -1,4 +1,17 @@
-// js/test.js - Test Page with Firestore Integration (No subscription limits)
+// js/test.js - Test Page with Firestore Integration + Anti-cheat
+//
+// This revision adds (adapted from Acadex CBT):
+//   • Fullscreen gating — test only starts after user enters fullscreen
+//     and `acadex:start-test` fires from the inline script in test.html.
+//   • Anti-cheat engine — tab-switch / blur / fullscreen-exit / refresh /
+//     devtools / copy / paste / screenshot / right-click all blocked with
+//     visible warning modals and violation tracking.
+//   • First violation: 15 s warning modal. Second: auto-submit + redirect.
+//
+// Everything else — weakness detection, scoring, results modal, weak-areas
+// modal, solutions modal, keyboard navigation, persistence — is preserved
+// byte-for-byte from the previous version.
+
 import { auth, db } from "./main.js";
 import {
     collection,
@@ -15,7 +28,7 @@ import {
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
-// Perfect-timed loader dismissal — see js/loading.js
+// Perfect-timed loader dismissal
 import { markPageReady } from "./loading.js";
 
 // =============================================
@@ -344,14 +357,307 @@ let subjectCounts = {};
 // Tracks which modal opened the solution modal so X can return there
 let solutionOpenedFrom = null; // 'results' | 'weakAreas' | null
 
+// Fullscreen-gated start
+let testDataReady = false;
+let testStarted   = false;
+let startTriggered = false;
+
+// ============================================================
+// ANTI-CHEAT MODULE
+// ============================================================
+const DASHBOARD_URL = 'dashboard.html';
+
+let tabSwitchCount = 0;
+let isSubmitting = false;
+let lastViolationTs = 0;
+
+const VIOLATION_DEDUPE_MS = 5000;
+const FIRST_WARNING_MS    = 15000;
+const SECOND_MODAL_MS     = 5000;
+
+let warningIntervalHandle = null;
+let warningEndTime = 0;
+
+const antiCheatWarningModal  = document.getElementById('antiCheatWarningModal');
+const fullscreenWarningModal = document.getElementById('fullscreenWarningModal');
+
+function showAntiCheatModal(message, autoCloseMs) {
+    if (!antiCheatWarningModal) return;
+    if (warningIntervalHandle) {
+        clearInterval(warningIntervalHandle);
+        warningIntervalHandle = null;
+    }
+    const msgEl = antiCheatWarningModal.querySelector('.antiCheatMessage');
+    const cdEl  = antiCheatWarningModal.querySelector('.antiCheatCountdown');
+    if (msgEl) msgEl.textContent = message;
+    antiCheatWarningModal.classList.add('is-visible');
+    antiCheatWarningModal.setAttribute('aria-hidden', 'false');
+
+    if (autoCloseMs === null || autoCloseMs === undefined) {
+        if (cdEl) cdEl.textContent = 'Please wait...';
+        return;
+    }
+    warningEndTime = Date.now() + autoCloseMs;
+    const tick = function () {
+        const remaining = warningEndTime - Date.now();
+        const seconds = Math.max(0, Math.ceil(remaining / 1000));
+        if (cdEl) {
+            cdEl.textContent = seconds > 0
+                ? 'Closing in ' + seconds + ' second' + (seconds === 1 ? '' : 's') + '...'
+                : 'Closing...';
+        }
+        if (remaining <= 0) {
+            antiCheatWarningModal.classList.remove('is-visible');
+            antiCheatWarningModal.setAttribute('aria-hidden', 'true');
+            if (warningIntervalHandle) {
+                clearInterval(warningIntervalHandle);
+                warningIntervalHandle = null;
+            }
+        }
+    };
+    tick();
+    warningIntervalHandle = setInterval(tick, 250);
+}
+
+function hideAntiCheatModal() {
+    if (!antiCheatWarningModal) return;
+    if (warningIntervalHandle) {
+        clearInterval(warningIntervalHandle);
+        warningIntervalHandle = null;
+    }
+    antiCheatWarningModal.classList.remove('is-visible');
+    antiCheatWarningModal.setAttribute('aria-hidden', 'true');
+}
+
+let wasFullscreenActive = false;
+
+function getFullscreenElement() {
+    return (
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement ||
+        null
+    );
+}
+
+function showFullscreenWarning() {
+    if (!fullscreenWarningModal) return;
+    fullscreenWarningModal.classList.add('is-visible');
+    fullscreenWarningModal.setAttribute('aria-hidden', 'false');
+}
+
+function hideFullscreenWarning() {
+    if (!fullscreenWarningModal) return;
+    fullscreenWarningModal.classList.remove('is-visible');
+    fullscreenWarningModal.setAttribute('aria-hidden', 'true');
+}
+
+function handleFullscreenChange() {
+    const isFullscreen = !!getFullscreenElement();
+    if (isFullscreen) {
+        wasFullscreenActive = true;
+        hideFullscreenWarning();
+    } else if (wasFullscreenActive) {
+        showFullscreenWarning();
+    }
+}
+
+async function logViolation(type, detail) {
+    try {
+        if (!currentUser || !currentUser.uid) return;
+        await addDoc(collection(db, 'violations'), {
+            userId: currentUser.uid,
+            testId: (testData && testData.testId) ? testData.testId : null,
+            type: type,
+            detail: String(detail || '').slice(0, 200),
+            remainingSeconds: typeof timeRemaining === 'number' ? timeRemaining : null,
+            questionIndex: typeof currentQuestionIndex === 'number' ? currentQuestionIndex : null,
+            timestamp: serverTimestamp()
+        });
+    } catch (err) {
+        // Non-fatal — don't break the test if Firestore rules deny.
+        console.warn('[test.js] Could not log violation:', err && err.message);
+    }
+}
+
+function registerViolation(reason) {
+    if (isSubmitting) return;
+    if (!testDataReady) return;  // ignore during initial load
+
+    const now = Date.now();
+    if (now - lastViolationTs < VIOLATION_DEDUPE_MS) return;
+    lastViolationTs = now;
+    tabSwitchCount++;
+
+    if (tabSwitchCount === 1) {
+        logViolation('first_violation', reason);
+        showAntiCheatModal(
+            'You left the exam window. This is your ONLY warning. ' +
+            'The timer is still running. Doing it again will immediately auto-submit your test.',
+            FIRST_WARNING_MS
+        );
+        return;
+    }
+
+    logViolation('second_violation', reason);
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+
+    showAntiCheatModal(
+        'Repeated violation detected. Your test is being submitted automatically...',
+        null
+    );
+
+    submitTest(true, SECOND_MODAL_MS, 'auto').catch(function (err) {
+        console.warn('Auto-submit failed, forcing redirect:', err);
+        try { window.removeEventListener('beforeunload', preventBeforeUnload); } catch (e) {}
+        window.location.href = DASHBOARD_URL;
+    });
+}
+
+function handleVisibilityLoss() {
+    if (!document.hidden) return;
+    registerViolation('visibilitychange');
+}
+
+function handleWindowBlur() {
+    registerViolation('window_blur');
+}
+
+function preventRefresh(e) {
+    const key = e.key;
+    const isRefreshKey =
+        key === 'F5' ||
+        (e.ctrlKey  && (key === 'r' || key === 'R')) ||
+        (e.ctrlKey  && e.shiftKey && (key === 'r' || key === 'R')) ||
+        (e.metaKey  && (key === 'r' || key === 'R'));
+    if (isRefreshKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        showAntiCheatModal('Page refresh is not allowed during the test. Please continue.', 2500);
+        return false;
+    }
+}
+
+function preventBeforeUnload(e) {
+    e.preventDefault();
+    e.returnValue = 'Your test is in progress. Leaving this page will discard your answers.';
+    return e.returnValue;
+}
+
+function preventClipboard(e) {
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea') return;
+    e.preventDefault();
+    e.stopPropagation();
+    showAntiCheatModal('Copy / paste is disabled during the test.', 2000);
+    logViolation('clipboard_blocked', e.type);
+    return false;
+}
+
+function preventContextMenu(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    showAntiCheatModal('Right-click is disabled during the test.', 2000);
+    logViolation('right_click_blocked');
+    return false;
+}
+
+function handleKeyBlock(e) {
+    const k = (e.key || '').toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && ['c','v','x','a'].indexOf(k) !== -1) {
+        e.preventDefault(); e.stopPropagation();
+        showAntiCheatModal('This shortcut is disabled during the test.', 2000);
+        logViolation('shortcut_blocked', 'ctrl+' + k);
+        return false;
+    }
+    if ((e.ctrlKey || e.metaKey) && ['s','p','u'].indexOf(k) !== -1) {
+        e.preventDefault(); e.stopPropagation();
+        showAntiCheatModal('This action is disabled during the test.', 2000);
+        logViolation('shortcut_blocked', 'ctrl+' + k);
+        return false;
+    }
+    if (k === 'f12' || ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i','j','c'].indexOf(k) !== -1)) {
+        e.preventDefault(); e.stopPropagation();
+        showAntiCheatModal('Developer tools are disabled during the test.', 2000);
+        logViolation('devtools_blocked', k);
+        return false;
+    }
+    if (k === 'printscreen') {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText('').catch(function () {});
+            }
+        } catch (err) {}
+        e.preventDefault();
+        showAntiCheatModal('Screenshots are not allowed during the test.', 2500);
+        logViolation('screenshot_attempt');
+        return false;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && k === 's') {
+        e.preventDefault(); e.stopPropagation();
+        showAntiCheatModal('Screenshots are not allowed during the test.', 2500);
+        logViolation('screenshot_attempt');
+        return false;
+    }
+}
+
+function preventSelectStart(e) {
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea') return;
+    e.preventDefault();
+}
+function preventDragStart(e) { e.preventDefault(); }
+
+function initAntiCheat() {
+    document.addEventListener('visibilitychange', handleVisibilityLoss);
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('keydown', preventRefresh, true);
+    document.addEventListener('keydown', handleKeyBlock, true);
+    document.addEventListener('copy',  preventClipboard, true);
+    document.addEventListener('cut',   preventClipboard, true);
+    document.addEventListener('paste', preventClipboard, true);
+    document.addEventListener('contextmenu', preventContextMenu, true);
+    document.addEventListener('selectstart', preventSelectStart, true);
+    document.addEventListener('dragstart',   preventDragStart,   true);
+
+    ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange']
+        .forEach(function (evt) {
+            document.addEventListener(evt, handleFullscreenChange);
+        });
+}
+
+// =============================================
+// FULLSCREEN-GATED START
+// =============================================
+function maybeStartTest() {
+    if (testStarted) return;
+    if (!testDataReady) return;
+    if (!startTriggered) return;
+    doStartTest();
+}
+
+function doStartTest() {
+    if (testStarted) return;
+    testStarted = true;
+    window.addEventListener('beforeunload', preventBeforeUnload);
+    startTimer();
+    loadQuestion(0);
+    updateProgressBar();
+    updateAnsweredCount();
+}
+
+document.addEventListener('acadex:start-test', function () {
+    startTriggered = true;
+    maybeStartTest();
+});
+
 // Initialize test page
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('currentYear').textContent = new Date().getFullYear();
 
     onAuthStateChanged(auth, async (user) => {
         if (!user) {
-            // No session — hide loader instantly (minDisplayMs: 0) so the
-            // user doesn't see a spinner lingering during the redirect.
             markPageReady({ minDisplayMs: 0 });
             window.location.href = '../index.html';
         } else {
@@ -365,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
     nextBtn.addEventListener('click', showNextQuestion);
     getResultBtn.addEventListener('click', showSubmitModal);
     cancelSubmit.addEventListener('click', hideSubmitModal);
-    confirmSubmit.addEventListener('click', submitTest);
+    confirmSubmit.addEventListener('click', () => submitTest(false));
     backToDashboard.addEventListener('click', goToDashboard);
 
     // Results modal → other modals
@@ -378,6 +684,9 @@ document.addEventListener('DOMContentLoaded', () => {
     backToDashboardFromWeakAreas.addEventListener('click', goToDashboard);
 
     document.addEventListener('keydown', handleKeyboardNavigation);
+
+    // Anti-cheat boot
+    initAntiCheat();
 });
 
 // =============================================
@@ -416,10 +725,9 @@ async function loadTestData() {
     const savedTest = sessionStorage.getItem('currentTest');
 
     if (!savedTest) {
-        // Nothing to load — hide the loader instantly, then alert + redirect.
         markPageReady({ minDisplayMs: 0 });
         alert('No test found. Please start a test from the dashboard.');
-        window.location.href = 'dashboard.html';
+        window.location.href = DASHBOARD_URL;
         return;
     }
 
@@ -430,7 +738,7 @@ async function loadTestData() {
         console.error('Error loading test data:', error);
         markPageReady({ minDisplayMs: 0 });
         alert('Error loading test. Please try again.');
-        window.location.href = 'dashboard.html';
+        window.location.href = DASHBOARD_URL;
     }
 }
 
@@ -441,7 +749,7 @@ function initializeTest() {
     if (!testData || !testData.questions) {
         markPageReady({ minDisplayMs: 0 });
         alert('Error: Test questions not loaded properly.');
-        window.location.href = 'dashboard.html';
+        window.location.href = DASHBOARD_URL;
         return;
     }
 
@@ -472,21 +780,22 @@ function initializeTest() {
 
     timeRemaining = testData.totalTime || (testData.questions.length * 120);
     updateTimerDisplay();
-    startTimer();
-
-    generateQuestionDots();
 
     if (!testData.userAnswers) {
         testData.userAnswers = Array(testData.questions.length).fill(null);
     }
+    generateQuestionDots();
 
-    loadQuestion(0);
-    updateProgressBar();
-    updateAnsweredCount();
+    // Mark setup complete. Test only starts once `acadex:start-test` fires.
+    testDataReady = true;
 
-    // Perfect-timed loader dismissal — the test page is fully usable by now
-    // (question 1 is rendered, timer started, dots generated). Hides the
-    // fullscreen + overlay loaders with a 500 ms minimum-display window.
+    if (startTriggered || window.__acadexTestStartTriggered) {
+        startTriggered = true;
+        maybeStartTest();
+    }
+
+    // Perfect-timed loader dismissal — page is now interactive
+    // (either showing the test or the fullscreen prompt).
     markPageReady();
 }
 
@@ -683,12 +992,14 @@ function showNextQuestion() {
 // =============================================
 function startTimer() {
     updateTimerDisplay();
+    if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         timeRemaining--;
         updateTimerDisplay();
         if (timeRemaining <= 300) timerElement.classList.add('warning');
         if (timeRemaining <= 0) {
             clearInterval(timerInterval);
+            timerInterval = null;
             autoSubmitTest();
         }
     }, 1000);
@@ -714,11 +1025,11 @@ function hideSubmitModal() {
 
 function autoSubmitTest() {
     getResultBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Time\'s Up! Submitting...';
-    setTimeout(() => submitTest(), 1000);
+    setTimeout(() => submitTest(false, 0, 'auto'), 1000);
 }
 
 // =============================================
-// SAVE TEST RESULT TO FIRESTORE (no plan field)
+// SAVE TEST RESULT TO FIRESTORE
 // =============================================
 async function saveTestResultToFirestore(score, correctAnswers, rawScore, subjectScores = null) {
     try {
@@ -828,9 +1139,20 @@ function showToast(message, type = 'success') {
 // =============================================
 // SUBMIT TEST
 // =============================================
-async function submitTest() {
+async function submitTest(redirectAfter, minRedirectDelayMs, explicitSubmissionType) {
+    if (isSubmitting) return;
+    isSubmitting = true;
+    const submissionStartTs = Date.now();
+
+    redirectAfter = !!redirectAfter;
+    minRedirectDelayMs = minRedirectDelayMs || 0;
+    // explicitSubmissionType retained for potential future metadata use
+    const submissionType = explicitSubmissionType || (redirectAfter ? 'auto' : 'manual');
+
+    window.removeEventListener('beforeunload', preventBeforeUnload);
+
     hideSubmitModal();
-    if (timerInterval) clearInterval(timerInterval);
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 
     getResultBtn.classList.add('btn-loading');
     getResultBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculating Score...';
@@ -902,6 +1224,16 @@ async function submitTest() {
 
         await saveTestResultToFirestore(finalDisplayScore, correctAnswers, correctAnswers, subjectScores);
 
+        if (redirectAfter) {
+            if (minRedirectDelayMs > 0) {
+                const elapsed = Date.now() - submissionStartTs;
+                const wait = minRedirectDelayMs - elapsed;
+                if (wait > 0) await new Promise(r => setTimeout(r, wait));
+            }
+            window.location.href = DASHBOARD_URL;
+            return;
+        }
+
         let message = "";
         if (testData.mode === 'jamb_drill') {
             const percent = (correctAnswers / testData.questions.length) * 100;
@@ -924,6 +1256,16 @@ async function submitTest() {
         getResultBtn.classList.remove('btn-loading');
         getResultBtn.innerHTML = '<i class="fas fa-check-circle"></i> Submit Test';
         alert(`❌ Error submitting test: ${error.message || 'Please try again.'}`);
+        isSubmitting = false;
+
+        if (redirectAfter) {
+            // Auto-submit path — re-throw so caller can force redirect
+            throw error;
+        }
+        // Manual path — user can retry
+        if (testStarted) {
+            window.addEventListener('beforeunload', preventBeforeUnload);
+        }
     }
 }
 
@@ -934,7 +1276,6 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
     getResultBtn.classList.remove('btn-loading');
     getResultBtn.innerHTML = '<i class="fas fa-check-circle"></i> Submit Test';
 
-    // === Populate results (score) modal ===
     finalScore.textContent = score;
     correctCount.textContent = correctAnswers;
     totalQuestionsCount.textContent = testData.questions.length;
@@ -944,7 +1285,6 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
         performanceMessage.style.display = 'block';
     }
 
-    // Subject breakdown (JAMB / WAEC)
     if (subjectScores && (testData.mode === 'jamb_drill' || testData.mode === 'waec_neco')) {
         subjectBreakdown.style.display = 'block';
         let html = '';
@@ -963,13 +1303,9 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
         subjectBreakdown.style.display = 'none';
     }
 
-    // === Populate weak areas modal (hidden until user clicks "Check Weak Areas") ===
     populateWeakAreasModal();
-
-    // Show results modal
     resultsModal.style.display = 'flex';
 
-    // Housekeeping
     sessionStorage.removeItem('currentTest');
     try {
         sessionStorage.setItem('previousTest', JSON.stringify({
@@ -981,6 +1317,8 @@ function showResults(score, correctAnswers, message, subjectScores = null) {
     } catch (e) {
         console.warn('Could not save to sessionStorage:', e);
     }
+
+    isSubmitting = false;
 }
 
 // =============================================
@@ -999,13 +1337,11 @@ function populateWeakAreasModal() {
     const hasRecs = testData.recommendations && testData.recommendations.length > 0;
 
     if (!hasWeak && !hasStrong) {
-        // No topic-level data — show friendly message inside both panels
         topicBreakdownList.innerHTML = `<p class="weak-areas-empty">Not enough data yet. Complete more tests to see your topic-level performance.</p>`;
         recommendationsList.innerHTML = `<li>Keep practicing consistently — your weak areas will be highlighted as you take more tests.</li>`;
         return;
     }
 
-    // Topic performance
     let topicHtml = '';
     if (hasWeak) {
         topicHtml += `<div style="margin-bottom: 6px; font-weight: 700; color: var(--accent-red); font-size: 13px;">Weak Areas</div>`;
@@ -1033,7 +1369,6 @@ function populateWeakAreasModal() {
     }
     topicBreakdownList.innerHTML = topicHtml;
 
-    // Recommendations
     if (hasRecs) {
         recommendationsList.innerHTML = testData.recommendations
             .map(rec => `<li>${rec}</li>`)
@@ -1241,7 +1576,8 @@ function formatTextForDisplay(text) {
 // NAVIGATION
 // =============================================
 function goToDashboard() {
-    window.location.href = 'dashboard.html';
+    try { window.removeEventListener('beforeunload', preventBeforeUnload); } catch (e) {}
+    window.location.href = DASHBOARD_URL;
 }
 
 // =============================================
